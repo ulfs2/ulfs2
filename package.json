@@ -5,6 +5,7 @@
   "main": "script.js",
   "scripts": {
     "start": "node server.js",
+    "build": "npm run build:cloudflare",
     "build:cloudflare": "node build-cloudflare.js",
     "dev:cloudflare": "npm run build:cloudflare && wrangler dev",
     "deploy:cloudflare": "npm run build:cloudflare && wrangler deploy",
