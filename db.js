@@ -81,10 +81,12 @@ async function initDb() {
         phone VARCHAR(50) NOT NULL,
         email VARCHAR(150) NOT NULL,
         in_group BOOLEAN NOT NULL DEFAULT FALSE,
+        left_group BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS in_group BOOLEAN NOT NULL DEFAULT FALSE;`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS left_group BOOLEAN NOT NULL DEFAULT FALSE;`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS political_affiliation VARCHAR(150);`);
 
     // Check if table is empty, insert sample records

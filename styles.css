@@ -862,7 +862,7 @@ legend { padding: 0; }
   color: #ffffff;
 }
 .btn-action.group-toggle {
-  flex: 1 0 100%;
+  flex: 1 1 220px;
   background: #fff;
   color: var(--orange-dark);
   border-color: #fdba74;
@@ -879,7 +879,21 @@ legend { padding: 0; }
 .btn-action.group-toggle.is-in-group:hover {
   background: #bbf7d0;
 }
-.btn-action:disabled { cursor: wait; opacity: .65; }
+.btn-action.left-group {
+  background: #fff7ed;
+  color: #c2410c;
+  border-color: #fdba74;
+}
+.btn-action.left-group:hover { background: #ffedd5; }
+.left-group-status {
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 800;
+}
+.btn-action:disabled { cursor: not-allowed; opacity: .55; }
 
 /* Empty State */
 .empty-state {

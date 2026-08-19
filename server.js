@@ -26,6 +26,7 @@ const mapStudent = row => ({
   phone: decryptValue(row.phone, 'students.phone'),
   email: decryptValue(row.email, 'students.email'),
   inGroup: Boolean(row.in_group),
+  leftGroup: Boolean(row.left_group),
   createdAt: row.created_at
 });
 
@@ -407,6 +408,7 @@ app.get('/api/students', async (req, res) => {
         phone, 
         email, 
         in_group AS "inGroup",
+        left_group AS "leftGroup",
         created_at AS "createdAt"
       FROM students 
       ORDER BY created_at DESC;
@@ -445,6 +447,7 @@ app.get('/api/students/:id', async (req, res) => {
         phone, 
         email, 
         in_group AS "inGroup",
+        left_group AS "leftGroup",
         created_at AS "createdAt"
       FROM students 
       WHERE id = $1;
@@ -503,6 +506,7 @@ app.post('/api/students', async (req, res) => {
         phone, 
         email, 
         in_group AS "inGroup",
+        left_group AS "leftGroup",
         created_at AS "createdAt";`,
       [encrypted.first_name, encrypted.father_name, encrypted.family_name, encrypted.origin, encrypted.address, encrypted.school, encrypted.major, encrypted.political_affiliation, encrypted.status, encrypted.language, encrypted.campus, encrypted.phone, encrypted.email]
     );
@@ -571,6 +575,7 @@ app.put('/api/students/:id', async (req, res) => {
         phone, 
         email, 
         in_group AS "inGroup",
+        left_group AS "leftGroup",
         created_at AS "createdAt";`,
       [encrypted.first_name, encrypted.father_name, encrypted.family_name, encrypted.origin, encrypted.address, encrypted.school, encrypted.major, encrypted.political_affiliation, encrypted.status, encrypted.language, encrypted.campus, encrypted.phone, encrypted.email, id]
     );
@@ -589,16 +594,21 @@ app.put('/api/students/:id', async (req, res) => {
 // PATCH group membership without changing the rest of the student record
 app.patch('/api/students/:id/group', async (req, res) => {
   const { id } = req.params;
-  const { inGroup } = req.body;
+  const { inGroup, leftGroup = false } = req.body;
   if (typeof inGroup !== 'boolean') {
     return res.status(400).json({ success: false, error: 'inGroup must be true or false' });
   }
+  if (typeof leftGroup !== 'boolean') {
+    return res.status(400).json({ success: false, error: 'leftGroup must be true or false' });
+  }
+
+  const nextInGroup = leftGroup ? false : inGroup;
 
   try {
     if (supabase) {
       const { data, error } = await supabase
         .from('students')
-        .update({ in_group: inGroup })
+        .update({ in_group: nextInGroup, left_group: leftGroup })
         .eq('id', id)
         .select()
         .maybeSingle();
@@ -608,14 +618,15 @@ app.patch('/api/students/:id/group', async (req, res) => {
     }
 
     const { rows } = await pool.query(
-      `UPDATE students SET in_group = $1 WHERE id = $2 RETURNING id, in_group AS "inGroup";`,
-      [inGroup, id]
+      `UPDATE students SET in_group = $1, left_group = $2 WHERE id = $3
+       RETURNING id, in_group AS "inGroup", left_group AS "leftGroup";`,
+      [nextInGroup, leftGroup, id]
     );
     if (!rows.length) return res.status(404).json({ success: false, error: 'Student not found' });
     return res.json({ success: true, data: rows[0] });
   } catch (err) {
     console.error('Error updating group membership:', err.message);
-    const needsMigration = err.code === '42703' || /in_group/i.test(err.message);
+    const needsMigration = err.code === '42703' || /in_group|left_group/i.test(err.message);
     return res.status(500).json({
       success: false,
       error: needsMigration

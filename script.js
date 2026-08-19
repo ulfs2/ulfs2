@@ -530,9 +530,14 @@ function renderStudents(query = '') {
           <button type="button"
             class="btn-action group-toggle ${student.inGroup ? 'is-in-group' : ''}"
             onclick="toggleGroupMembership('${student.id}', ${!student.inGroup}, this)"
-            aria-pressed="${student.inGroup ? 'true' : 'false'}">
-            ${student.inGroup ? '✓ In group' : '+ Add to group'}
+            aria-pressed="${student.inGroup ? 'true' : 'false'}"
+            ${student.leftGroup ? 'disabled title="This student left the group"' : ''}>
+            ${student.leftGroup ? 'In group (disabled)' : (student.inGroup ? '✓ In group' : '+ Add to group')}
           </button>
+          ${student.inGroup && !student.leftGroup ? `
+            <button type="button" class="btn-action left-group"
+              onclick="markStudentLeftGroup('${student.id}', this)">Left group</button>
+          ` : student.leftGroup ? '<span class="left-group-status">Left group</span>' : ''}
           <a class="btn-action edit" href="form.html?edit=${student.id}">Edit record</a>
           <button type="button" class="btn-action delete" onclick="deleteStudentRecord('${student.id}')">Delete</button>
         </div>
@@ -677,6 +682,30 @@ async function toggleGroupMembership(id, inGroup, button) {
       inGroup ? 'Added to group' : 'Removed from group',
       inGroup ? 'The student is now in the group.' : 'The student is no longer in the group.'
     );
+  } catch (err) {
+    if (button) button.disabled = false;
+    await showPopup({ title: 'Could not update group', message: err.message, danger: true });
+  }
+}
+
+async function markStudentLeftGroup(id, button) {
+  if (button) button.disabled = true;
+  try {
+    const response = await fetch(`${API_BASE}/students/${id}/group`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inGroup: false, leftGroup: true })
+    });
+    const json = await parseApiResponse(response);
+    if (!json.success) throw new Error(json.error || 'Could not mark the student as having left');
+
+    const student = students.find(item => item.id === id);
+    if (student) {
+      student.inGroup = false;
+      student.leftGroup = true;
+    }
+    renderStudents(searchInput ? searchInput.value : '');
+    showToast('Student left the group', 'The In group option is now disabled for this student.');
   } catch (err) {
     if (button) button.disabled = false;
     await showPopup({ title: 'Could not update group', message: err.message, danger: true });
