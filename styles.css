@@ -530,7 +530,27 @@ legend { padding: 0; }
 .stat-icon.group { background: #dcfce7; color: #15803d; }
 .group-stat-card { border-color: #bbf7d0; }
 .stat-icon.left-group-icon { background: #fee2e2; color: #b91c1c; }
-.left-group-stat-card { border-color: #fecaca; }
+.combined-group-stat {
+  grid-column: span 2;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0;
+  overflow: hidden;
+}
+.group-stat-half { position: relative; padding: 22px; min-width: 0; }
+.group-stat-half > span {
+  display: block;
+  padding-right: 42px;
+  margin-bottom: 18px;
+  color: #78350f;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+}
+.group-stat-half strong { display: block; font: 700 48px/1 "Space Grotesk"; }
+.group-stat-half small { display: block; margin-top: 10px; color: var(--muted); font-size: 10px; }
+.left-group-half { border-left: 1px solid #fecaca; }
 
 .insights-grid {
   display: grid;
