@@ -529,6 +529,8 @@ legend { padding: 0; }
 .stat-icon.mint { background: #dcfce7; color: #15803d; }
 .stat-icon.group { background: #dcfce7; color: #15803d; }
 .group-stat-card { border-color: #bbf7d0; }
+.stat-icon.left-group-icon { background: #fee2e2; color: #b91c1c; }
+.left-group-stat-card { border-color: #fecaca; }
 
 .insights-grid {
   display: grid;

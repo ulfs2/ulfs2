@@ -595,6 +595,7 @@ function updateStats() {
   const newCount = count('status', 'New');
   const returningCount = count('status', 'Mu3id');
   const groupCount = students.filter(student => student.inGroup).length;
+  const leftGroupCount = students.filter(student => student.leftGroup).length;
   const fanar = count('campus', 'Fanar');
   const amshit = count('campus', 'Amshit');
   const french = count('language', 'French');
@@ -613,6 +614,8 @@ function updateStats() {
   setText('#schoolCount', schools);
   setText('#groupStudents', groupCount);
   setText('#groupPercentage', `${percent(groupCount)}% of total`);
+  setText('#leftGroupStudents', leftGroupCount);
+  setText('#leftGroupPercentage', `${percent(leftGroupCount)}% of total`);
   setText('#newPercentage', `${percent(newCount)}% of total`);
   setText('#returningPercentage', `${percent(returningCount)}% of total`);
   setText('#fanarCount', fanar);
