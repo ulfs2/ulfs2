@@ -735,7 +735,7 @@ legend { padding: 0; }
 
 .student-filters {
   display: grid;
-  grid-template-columns: repeat(5, minmax(120px, 1fr)) auto;
+  grid-template-columns: repeat(7, minmax(110px, 1fr)) auto;
   gap: 12px;
   align-items: end;
   margin: -8px 0 24px;
@@ -839,8 +839,8 @@ legend { padding: 0; }
 /* Student Cards Grid */
 .records-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 17px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
 }
 .student-card {
   background: var(--paper);
@@ -850,6 +850,12 @@ legend { padding: 0; }
   position: relative;
   box-shadow: 0 4px 16px rgba(234, 88, 12, 0.04);
   min-width: 0;
+  transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+.student-card:hover {
+  transform: translateY(-2px);
+  border-color: #fdba74;
+  box-shadow: 0 10px 28px rgba(124, 45, 18, .09);
 }
 .student-top { display: flex; gap: 13px; align-items: center; }
 .student-top > div:not(.avatar) { min-width: 0; padding-right: 48px; }
@@ -1181,6 +1187,43 @@ legend { padding: 0; }
 }
 .btn-approve-class-icon:disabled,
 .btn-approve-group-icon:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-email-status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+  color: var(--orange-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  padding: 0;
+}
+.btn-email-status-icon:hover:not(:disabled) {
+  background: var(--orange-primary);
+  color: #ffffff;
+  border-color: var(--orange-primary);
+  transform: translateY(-1px);
+}
+.btn-email-status-icon.is-sent {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #86efac;
+}
+.btn-email-status-icon.is-sent:hover:not(:disabled) {
+  background: #bbf7d0;
+  color: #166534;
+  border-color: #4ade80;
+  transform: translateY(-1px);
+}
+.btn-email-status-icon:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -1526,6 +1569,8 @@ html[data-theme="dark"] .user-editor { background: var(--paper); }
   .stat-card.card-bottom:last-child { grid-column: span 2; }
   .records-grid { grid-template-columns: repeat(2, 1fr); }
   .compact-hero { flex-direction: column; align-items: flex-start; gap: 20px; }
+  .student-filters { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .clear-filters { grid-column: span 1; }
 }
 
 @media(max-width: 850px) {
@@ -2380,21 +2425,25 @@ html[data-theme="dark"] .btn-action.save-contact-btn:hover { background: var(--o
 html[data-theme="dark"] .btn-save-contact-icon,
 html[data-theme="dark"] .btn-approve-class-icon,
 html[data-theme="dark"] .btn-approve-group-icon,
+html[data-theme="dark"] .btn-email-status-icon,
 html[data-theme="dark"] .btn-contact-quick,
 html[data-theme="dark"] .btn-kazaa-contact { background: #28170f; color: #fdba74; border-color: #7c2d12; }
 html[data-theme="dark"] .btn-save-contact-icon:hover,
 html[data-theme="dark"] .btn-approve-class-icon:hover:not(:disabled),
 html[data-theme="dark"] .btn-approve-group-icon:hover:not(:disabled),
+html[data-theme="dark"] .btn-email-status-icon:hover:not(:disabled),
 html[data-theme="dark"] .btn-contact-quick:hover,
 html[data-theme="dark"] .btn-kazaa-contact:hover { background: var(--orange-primary); color: #ffffff; border-color: var(--orange-primary); }
 html[data-theme="dark"] .btn-approve-class-icon.is-approved,
-html[data-theme="dark"] .btn-approve-group-icon.is-approved {
+html[data-theme="dark"] .btn-approve-group-icon.is-approved,
+html[data-theme="dark"] .btn-email-status-icon.is-sent {
   background: #12351f;
   color: #86efac;
   border-color: #267044;
 }
 html[data-theme="dark"] .btn-approve-class-icon.is-approved:hover:not(:disabled),
-html[data-theme="dark"] .btn-approve-group-icon.is-approved:hover:not(:disabled) {
+html[data-theme="dark"] .btn-approve-group-icon.is-approved:hover:not(:disabled),
+html[data-theme="dark"] .btn-email-status-icon.is-sent:hover:not(:disabled) {
   background: #194a2b;
   color: #bbf7d0;
   border-color: #34d399;
@@ -3289,6 +3338,48 @@ html[data-theme="dark"] .pagination-btn.is-active {
   white-space: nowrap;
 }
 
+.btn-email-sent-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  line-height: 1.2;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.btn-email-sent-badge.is-sent {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #86efac;
+}
+.btn-email-sent-badge.is-sent:hover:not(:disabled) {
+  background: #bbf7d0;
+  color: #166534;
+  border-color: #4ade80;
+  transform: translateY(-1px);
+}
+.btn-email-sent-badge.is-unsent {
+  background: #f1f5f9;
+  color: #64748b;
+  border-color: #cbd5e1;
+}
+.btn-email-sent-badge.is-unsent:hover:not(:disabled) {
+  background: #e2e8f0;
+  color: #334155;
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+}
+.btn-email-sent-badge:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* Student card action button */
 .email-invite-card-btn {
   display: inline-flex;
@@ -3306,6 +3397,59 @@ html[data-theme="dark"] .pagination-btn.is-active {
 }
 .email-invite-card-btn svg {
   color: var(--orange-primary);
+}
+.email-invite-card-btn.is-email-sent,
+.student-card.has-email-sent .email-invite-card-btn {
+  background: #f0fdf4;
+  color: #166534;
+  border-color: #86efac;
+}
+.email-invite-card-btn.is-email-sent:hover,
+.student-card.has-email-sent .email-invite-card-btn:hover {
+  background: #dcfce7;
+  color: #14532d;
+  border-color: #4ade80;
+}
+.email-invite-card-btn.is-email-sent svg,
+.student-card.has-email-sent .email-invite-card-btn svg {
+  color: #16a34a;
+}
+
+html[data-theme="dark"] .btn-email-sent-badge.is-sent {
+  background: #12351f;
+  color: #86efac;
+  border-color: #267044;
+}
+html[data-theme="dark"] .btn-email-sent-badge.is-sent:hover:not(:disabled) {
+  background: #194a2b;
+  color: #bbf7d0;
+  border-color: #34d399;
+}
+html[data-theme="dark"] .btn-email-sent-badge.is-unsent {
+  background: #1e293b;
+  color: #94a3b8;
+  border-color: #334155;
+}
+html[data-theme="dark"] .btn-email-sent-badge.is-unsent:hover:not(:disabled) {
+  background: #334155;
+  color: #f1f5f9;
+  border-color: #475569;
+}
+html[data-theme="dark"] .email-invite-card-btn.is-email-sent,
+html[data-theme="dark"] .student-card.has-email-sent .email-invite-card-btn {
+  background: #12351f;
+  color: #86efac;
+  border-color: #267044;
+}
+html[data-theme="dark"] .email-invite-card-btn.is-email-sent:hover,
+html[data-theme="dark"] .student-card.has-email-sent .email-invite-card-btn:hover {
+  background: #194a2b;
+  color: #bbf7d0;
+  border-color: #34d399;
+}
+html[data-theme="dark"] .email-invite-card-btn.is-email-sent svg,
+html[data-theme="dark"] .student-card.has-email-sent .email-invite-card-btn svg {
+  color: #86efac;
 }
 
 /* Modal layout */

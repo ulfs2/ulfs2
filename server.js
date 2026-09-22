@@ -58,10 +58,10 @@ function buildUserFullNamePayload(fullName = '', section = 'mispce') {
 }
 
 function parseStudentNotePayload(value) {
-  if (!value) return { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false };
+  if (!value) return { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false, emailSent: false };
   try {
     const decrypted = decryptValue(value, 'students.note');
-    if (!decrypted) return { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false };
+    if (!decrypted) return { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false, emailSent: false };
     const parsed = JSON.parse(decrypted);
     const approved = Boolean(parsed.linkApproved !== undefined ? parsed.linkApproved : parsed.inClass);
     return {
@@ -69,21 +69,23 @@ function parseStudentNotePayload(value) {
       assignedGroup: typeof parsed.assignedGroup === 'string' ? parsed.assignedGroup : '',
       section: typeof parsed.section === 'string' ? parsed.section.toLowerCase() : '',
       linkApproved: approved,
-      inClass: approved
+      inClass: approved,
+      emailSent: Boolean(parsed.emailSent)
     };
   } catch {
-    return { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false };
+    return { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false, emailSent: false };
   }
 }
 
-function buildStudentNotePayload(text = '', assignedGroup = '', section = '', linkApproved = false) {
+function buildStudentNotePayload(text = '', assignedGroup = '', section = '', linkApproved = false, emailSent = false) {
   const approved = Boolean(linkApproved);
   return JSON.stringify({
     text: text || '',
     assignedGroup: assignedGroup || '',
     section: section || '',
     linkApproved: approved,
-    inClass: approved
+    inClass: approved,
+    emailSent: Boolean(emailSent)
   });
 }
 
@@ -105,6 +107,11 @@ const mapStudent = row => {
     row.inClass !== undefined ? row.inClass :
     notePayload.linkApproved !== undefined ? notePayload.linkApproved :
     notePayload.inClass
+  );
+  const emailSent = Boolean(
+    row.email_sent !== undefined ? row.email_sent :
+    row.emailSent !== undefined ? row.emailSent :
+    notePayload.emailSent
   );
 
   return {
@@ -130,6 +137,7 @@ const mapStudent = row => {
     assignedGroup: assignedGroup || '',
     linkApproved,
     inClass: linkApproved,
+    emailSent,
     createdAt: row.created_at
   };
 };
@@ -144,11 +152,13 @@ const isSystemStudent = row => {
 const toStudentRow = student => {
   const targetSection = student.section || inferSectionFromMajor(student.major);
   const isApproved = student.linkApproved !== undefined ? Boolean(student.linkApproved) : Boolean(student.inClass);
+  const isEmailSent = Boolean(student.emailSent !== undefined ? student.emailSent : student.email_sent);
   const notePayload = buildStudentNotePayload(
     student.note || '',
     student.assignedGroup || '',
     targetSection,
-    isApproved
+    isApproved,
+    isEmailSent
   );
 
   const row = {
@@ -169,6 +179,9 @@ const toStudentRow = student => {
   };
   if (student.kazaa !== undefined) {
     row.kazaa = student.kazaa ? encryptValue(student.kazaa, 'students.kazaa') : '';
+  }
+  if (student.emailSent !== undefined || student.email_sent !== undefined) {
+    row.email_sent = isEmailSent;
   }
   return row;
 };
@@ -268,13 +281,14 @@ async function setStudentApprovalState(id, linkApproved) {
 
     if (updateResult.error && (updateResult.error.code === 'PGRST204' || updateResult.error.code === '42703' || /in_class/i.test(updateResult.error.message))) {
       const { data: studentRecord } = await supabase.from('students').select('note').eq('id', id).maybeSingle();
-      const currentPayload = studentRecord ? parseStudentNotePayload(studentRecord.note) : { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false };
+      const currentPayload = studentRecord ? parseStudentNotePayload(studentRecord.note) : { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false, emailSent: false };
       const newPayload = {
         text: currentPayload.text,
         assignedGroup: currentPayload.assignedGroup || '',
         section: currentPayload.section || '',
         linkApproved,
-        inClass: linkApproved
+        inClass: linkApproved,
+        emailSent: Boolean(currentPayload.emailSent)
       };
       const encryptedNote = encryptValue(JSON.stringify(newPayload), 'students.note');
 
@@ -301,13 +315,82 @@ async function setStudentApprovalState(id, linkApproved) {
   } catch (pgErr) {
     if (pgErr.code === '42703' || /in_class/i.test(pgErr.message)) {
       const noteRes = await pool.query('SELECT note FROM students WHERE id = $1', [id]);
-      const currentPayload = noteRes.rows[0] ? parseStudentNotePayload(noteRes.rows[0].note) : { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false };
+      const currentPayload = noteRes.rows[0] ? parseStudentNotePayload(noteRes.rows[0].note) : { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false, emailSent: false };
       const newPayload = {
         text: currentPayload.text,
         assignedGroup: currentPayload.assignedGroup || '',
         section: currentPayload.section || '',
         linkApproved,
-        inClass: linkApproved
+        inClass: linkApproved,
+        emailSent: Boolean(currentPayload.emailSent)
+      };
+      const encryptedNote = encryptValue(JSON.stringify(newPayload), 'students.note');
+
+      const { rows } = await pool.query(
+        `UPDATE students SET note = $1 WHERE id = $2 RETURNING *;`,
+        [encryptedNote, id]
+      );
+      if (!rows.length) return null;
+      return mapStudent(rows[0]);
+    }
+    throw pgErr;
+  }
+}
+
+async function setStudentEmailSentState(id, emailSent) {
+  const sent = Boolean(emailSent);
+  if (supabase) {
+    let updateResult = await supabase
+      .from('students')
+      .update({ email_sent: sent })
+      .eq('id', id)
+      .select()
+      .maybeSingle();
+
+    if (updateResult.error && (updateResult.error.code === 'PGRST204' || updateResult.error.code === '42703' || /email_sent/i.test(updateResult.error.message))) {
+      const { data: studentRecord } = await supabase.from('students').select('note').eq('id', id).maybeSingle();
+      const currentPayload = studentRecord ? parseStudentNotePayload(studentRecord.note) : { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false, emailSent: false };
+      const newPayload = {
+        text: currentPayload.text,
+        assignedGroup: currentPayload.assignedGroup || '',
+        section: currentPayload.section || '',
+        linkApproved: currentPayload.linkApproved,
+        inClass: currentPayload.inClass,
+        emailSent: sent
+      };
+      const encryptedNote = encryptValue(JSON.stringify(newPayload), 'students.note');
+
+      updateResult = await supabase
+        .from('students')
+        .update({ note: encryptedNote })
+        .eq('id', id)
+        .select()
+        .maybeSingle();
+    }
+
+    if (updateResult.error) throw updateResult.error;
+    if (!updateResult.data) return null;
+    return mapStudent(updateResult.data);
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `UPDATE students SET email_sent = $1 WHERE id = $2 RETURNING *;`,
+      [sent, id]
+    );
+    if (!rows.length) return null;
+    return mapStudent(rows[0]);
+  } catch (pgErr) {
+    if (pgErr.code === '42703' || /email_sent/i.test(pgErr.message)) {
+      const noteRes = await pool.query('SELECT note FROM students WHERE id = $1', [id]);
+      const currentPayload = noteRes.rows[0] ? parseStudentNotePayload(noteRes.rows[0].note) : { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false, emailSent: false };
+      const newPayload = {
+        text: currentPayload.text,
+        assignedGroup: currentPayload.assignedGroup || '',
+        section: currentPayload.section || '',
+        linkApproved: currentPayload.linkApproved,
+        inClass: currentPayload.inClass,
+        emailSent: sent
       };
       const encryptedNote = encryptValue(JSON.stringify(newPayload), 'students.note');
 
@@ -989,9 +1072,14 @@ app.get('/api/students', async (req, res) => {
         const mapped = mapStudent(row);
         return {
           ...row,
+          ...mapped,
           note: readStudentNote(row.note),
           kazaa: row.kazaa ? decryptValue(row.kazaa, 'students.kazaa') : '',
-          section: mapped.section
+          section: mapped.section,
+          linkApproved: mapped.linkApproved,
+          inClass: mapped.inClass,
+          emailSent: mapped.emailSent,
+          assignedGroup: mapped.assignedGroup
         };
       });
     }
@@ -1518,11 +1606,12 @@ app.put('/api/students/:id', requireAdmin, async (req, res) => {
     let studentPayload = { ...req.body };
     if (supabase) {
       const { data: cur } = await supabase.from('students').select('note').eq('id', id).maybeSingle();
-      const curPayload = cur ? parseStudentNotePayload(cur.note) : { text: '', assignedGroup: '', section: '', inClass: false };
+      const curPayload = cur ? parseStudentNotePayload(cur.note) : { text: '', assignedGroup: '', section: '', inClass: false, emailSent: false };
       studentPayload.note = req.body.note !== undefined ? req.body.note : curPayload.text;
       studentPayload.assignedGroup = curPayload.assignedGroup;
       studentPayload.section = req.body.section || curPayload.section || inferSectionFromMajor(major);
       studentPayload.inClass = req.body.inClass !== undefined ? Boolean(req.body.inClass) : curPayload.inClass;
+      studentPayload.emailSent = req.body.emailSent !== undefined ? Boolean(req.body.emailSent) : Boolean(curPayload.emailSent);
 
       const { data, error } = await supabase.from('students').update(toStudentRow(studentPayload)).eq('id', id).select().maybeSingle();
       if (error) throw error;
@@ -1594,9 +1683,16 @@ app.patch('/api/students/:id/note', requireAdmin, async (req, res) => {
     let row;
     if (supabase) {
       const { data: studentRecord } = await supabase.from('students').select('note').eq('id', id).maybeSingle();
-      const currentPayload = studentRecord ? parseStudentNotePayload(studentRecord.note) : { text: '', assignedGroup: '', section: '' };
-      const newPayload = { text: note.trim(), assignedGroup: currentPayload.assignedGroup || '', section: currentPayload.section || '' };
-      const encrypted = (newPayload.text || newPayload.assignedGroup || newPayload.section)
+      const currentPayload = studentRecord ? parseStudentNotePayload(studentRecord.note) : { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false, emailSent: false };
+      const newPayload = {
+        text: note.trim(),
+        assignedGroup: currentPayload.assignedGroup || '',
+        section: currentPayload.section || '',
+        linkApproved: currentPayload.linkApproved,
+        inClass: currentPayload.inClass,
+        emailSent: Boolean(currentPayload.emailSent)
+      };
+      const encrypted = (newPayload.text || newPayload.assignedGroup || newPayload.section || newPayload.linkApproved || newPayload.emailSent)
         ? encryptValue(JSON.stringify(newPayload), 'students.note')
         : '';
       const { data, error } = await supabase.from('students').update({ note: encrypted }).eq('id', id).select('id').maybeSingle();
@@ -1604,9 +1700,16 @@ app.patch('/api/students/:id/note', requireAdmin, async (req, res) => {
       row = data;
     } else {
       const noteRes = await pool.query('SELECT note FROM students WHERE id = $1', [id]);
-      const currentPayload = noteRes.rows[0] ? parseStudentNotePayload(noteRes.rows[0].note) : { text: '', assignedGroup: '', section: '' };
-      const newPayload = { text: note.trim(), assignedGroup: currentPayload.assignedGroup || '', section: currentPayload.section || '' };
-      const encrypted = (newPayload.text || newPayload.assignedGroup || newPayload.section)
+      const currentPayload = noteRes.rows[0] ? parseStudentNotePayload(noteRes.rows[0].note) : { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false, emailSent: false };
+      const newPayload = {
+        text: note.trim(),
+        assignedGroup: currentPayload.assignedGroup || '',
+        section: currentPayload.section || '',
+        linkApproved: currentPayload.linkApproved,
+        inClass: currentPayload.inClass,
+        emailSent: Boolean(currentPayload.emailSent)
+      };
+      const encrypted = (newPayload.text || newPayload.assignedGroup || newPayload.section || newPayload.linkApproved || newPayload.emailSent)
         ? encryptValue(JSON.stringify(newPayload), 'students.note')
         : '';
       const { rows } = await pool.query('UPDATE students SET note = $1 WHERE id = $2 RETURNING id', [encrypted, id]);
@@ -1707,14 +1810,16 @@ app.patch('/api/students/:id/group', async (req, res) => {
       // If assigned_group column is not present in Supabase table (PGRST204 or 42703), fallback to note payload
       if (updateResult.error && (updateResult.error.code === 'PGRST204' || updateResult.error.code === '42703' || /assigned_group/i.test(updateResult.error.message))) {
         const { data: studentRecord } = await supabase.from('students').select('note').eq('id', id).maybeSingle();
-        const currentPayload = studentRecord ? parseStudentNotePayload(studentRecord.note) : { text: '', assignedGroup: '', section: '', inClass: false };
+        const currentPayload = studentRecord ? parseStudentNotePayload(studentRecord.note) : { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false, emailSent: false };
         const newPayload = {
           text: currentPayload.text,
           assignedGroup: nextAssignedGroup !== undefined ? nextAssignedGroup : (currentPayload.assignedGroup || ''),
           section: currentPayload.section || '',
-          inClass: currentPayload.inClass || false
+          linkApproved: currentPayload.linkApproved,
+          inClass: currentPayload.inClass || false,
+          emailSent: Boolean(currentPayload.emailSent)
         };
-        const encryptedNote = (newPayload.text || newPayload.assignedGroup || newPayload.section || newPayload.inClass)
+        const encryptedNote = (newPayload.text || newPayload.assignedGroup || newPayload.section || newPayload.inClass || newPayload.emailSent)
           ? encryptValue(JSON.stringify(newPayload), 'students.note')
           : '';
 
@@ -1743,13 +1848,16 @@ app.patch('/api/students/:id/group', async (req, res) => {
     } catch (pgErr) {
       if (pgErr.code === '42703' || /assigned_group/i.test(pgErr.message)) {
         const noteRes = await pool.query('SELECT note FROM students WHERE id = $1', [id]);
-        const currentPayload = noteRes.rows[0] ? parseStudentNotePayload(noteRes.rows[0].note) : { text: '', inClass: false };
+        const currentPayload = noteRes.rows[0] ? parseStudentNotePayload(noteRes.rows[0].note) : { text: '', linkApproved: false, inClass: false, emailSent: false };
         const newPayload = {
           text: currentPayload.text,
           assignedGroup: nextAssignedGroup !== undefined ? nextAssignedGroup : (currentPayload.assignedGroup || ''),
-          inClass: currentPayload.inClass || false
+          section: currentPayload.section || '',
+          linkApproved: currentPayload.linkApproved,
+          inClass: currentPayload.inClass || false,
+          emailSent: Boolean(currentPayload.emailSent)
         };
-        const encryptedNote = (newPayload.text || newPayload.assignedGroup || newPayload.inClass)
+        const encryptedNote = (newPayload.text || newPayload.assignedGroup || newPayload.inClass || newPayload.emailSent)
           ? encryptValue(JSON.stringify(newPayload), 'students.note')
           : '';
 
@@ -1807,6 +1915,46 @@ app.patch(['/api/students/:id/link-approval', '/api/students/:id/class'], async 
     return res.json({ success: true, data: updated });
   } catch (err) {
     console.error('Error updating approval:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PATCH student email sent state without modifying other fields
+app.patch('/api/students/:id/email-sent', async (req, res) => {
+  const { id } = req.params;
+  const emailSent = typeof req.body.emailSent === 'boolean'
+    ? req.body.emailSent
+    : (typeof req.body.email_sent === 'boolean' ? req.body.email_sent : undefined);
+
+  if (typeof emailSent !== 'boolean') {
+    return res.status(400).json({ success: false, error: 'emailSent must be true or false' });
+  }
+
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const session = verifySession(token);
+  if (!session) {
+    return res.status(401).json({ success: false, error: 'Please sign in again.' });
+  }
+
+  if (session && (session.role === 'deleg' || (session.role === 'admin' && session.section !== 'all'))) {
+    const callerSection = session.section || 'mispce';
+    if (supabase) {
+      const { data: checkStudent } = await supabase.from('students').select('note, major').eq('id', id).maybeSingle();
+      if (checkStudent) {
+        const studentSection = parseStudentNotePayload(checkStudent.note).section || inferSectionFromMajor(checkStudent.major);
+        if (studentSection !== callerSection) {
+          return res.status(403).json({ success: false, error: 'Cannot modify students outside your section' });
+        }
+      }
+    }
+  }
+
+  try {
+    const updated = await setStudentEmailSentState(id, emailSent);
+    if (!updated) return res.status(404).json({ success: false, error: 'Student not found' });
+    return res.json({ success: true, data: updated, emailSent: updated.emailSent });
+  } catch (err) {
+    console.error('Error updating emailSent:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -2093,6 +2241,12 @@ app.post('/api/email/send', async (req, res) => {
         }
       }
 
+      try {
+        await setStudentEmailSentState(id, true);
+      } catch (emailSentErr) {
+        console.warn(`Could not update emailSent state for student ${id}:`, emailSentErr.message);
+      }
+
       sentCount++;
       results.push({
         id,
@@ -2101,7 +2255,8 @@ app.post('/api/email/send', async (req, res) => {
         success: true,
         groupKey: automaticGroupKey,
         previewUrl: sendResult.previewUrl,
-        isSimulated: sendResult.isSimulated
+        isSimulated: sendResult.isSimulated,
+        emailSent: true
       });
 
       recordEmailLog({

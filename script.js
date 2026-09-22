@@ -117,6 +117,7 @@ const majorFilter = document.querySelector('#majorFilter');
 const campusFilter = document.querySelector('#campusFilter');
 const languageFilter = document.querySelector('#languageFilter');
 const groupFilter = document.querySelector('#groupFilter');
+const emailSentFilter = document.querySelector('#emailSentFilter');
 const clearFilters = document.querySelector('#clearFilters');
 const toast = document.querySelector('#toast');
 const dbStatusPill = document.querySelector('#dbStatusPill');
@@ -873,6 +874,8 @@ function renderStudents(query = '') {
     const matchesStatus = !statusFilter?.value || String(student.status || '').trim().toLowerCase() === statusFilter.value.trim().toLowerCase();
     const isApproved = Boolean(student.linkApproved !== undefined ? student.linkApproved : student.inClass);
     const matchesLink = !linkFilter?.value || (linkFilter.value === 'approved' || linkFilter.value === 'in' ? isApproved : !isApproved);
+    const matchesEmailSent = !emailSentFilter?.value
+      || (emailSentFilter.value === 'sent' ? Boolean(student.emailSent) : !Boolean(student.emailSent));
     const matchesMajor = !majorFilter?.value || student.major === majorFilter.value;
     const targetCampus = (campusFilter?.value || '').trim().toLowerCase();
     const studentCampus = (student.campus || '').trim().toLowerCase();
@@ -887,7 +890,7 @@ function renderStudents(query = '') {
         : groupFilter.value === 'unassigned' ? (!assignedGroup && !student.leftGroup)
         : groupFilter.value === 'Grp A,B' ? (assignedGroup === 'Grp A,B' || assignedGroup === 'Grp A' || assignedGroup === 'Grp B')
         : groupFilter.value === assignedGroup);
-    return matchesSearch && matchesStatus && matchesLink && matchesMajor && matchesCampus && matchesLanguage && matchesGroup;
+    return matchesSearch && matchesStatus && matchesLink && matchesEmailSent && matchesMajor && matchesCampus && matchesLanguage && matchesGroup;
   });
 
   const totalItems = filtered.length;
@@ -902,7 +905,7 @@ function renderStudents(query = '') {
   if (recordCount) recordCount.textContent = students.length;
   const directorySummary = document.querySelector('#directorySummary');
   if (directorySummary) {
-    const filtering = needle || statusFilter?.value || linkFilter?.value || majorFilter?.value || campusFilter?.value || languageFilter?.value || groupFilter?.value;
+    const filtering = needle || statusFilter?.value || linkFilter?.value || emailSentFilter?.value || majorFilter?.value || campusFilter?.value || languageFilter?.value || groupFilter?.value;
     directorySummary.textContent = filtering
       ? `${filtered.length} of ${students.length} students`
       : `${students.length} student${students.length === 1 ? '' : 's'}`;
@@ -910,7 +913,7 @@ function renderStudents(query = '') {
 
   if (emptyState) {
     emptyState.style.display = filtered.length ? 'none' : 'block';
-    const filtering = needle || statusFilter?.value || linkFilter?.value || majorFilter?.value || campusFilter?.value || languageFilter?.value || groupFilter?.value;
+    const filtering = needle || statusFilter?.value || linkFilter?.value || emailSentFilter?.value || majorFilter?.value || campusFilter?.value || languageFilter?.value || groupFilter?.value;
     const emptyDesc = emptyState.querySelector('p');
     const emptyBtn = emptyState.querySelector('.btn-primary');
     if (emptyDesc && filtering) {
@@ -920,7 +923,8 @@ function renderStudents(query = '') {
         campusFilter?.value ? `campus "${campusFilter.value}"` : '',
         groupFilter?.value ? `group "${groupFilter.value}"` : '',
         majorFilter?.value ? `major "${majorFilter.value}"` : '',
-        linkFilter?.value ? `group link "${linkFilter.value}"` : ''
+        linkFilter?.value ? `group link "${linkFilter.value}"` : '',
+        emailSentFilter?.value ? `email "${emailSentFilter.value === 'sent' ? 'sent' : 'not sent'}"` : ''
       ].filter(Boolean).join(', ');
       emptyDesc.textContent = `No students match the current filters (${activeFilterNames}).`;
       if (emptyBtn) {
@@ -1025,13 +1029,32 @@ function renderStudents(query = '') {
     const studentSec = (student.section || inferSectionFromMajor(student.major) || 'mispce').toLowerCase();
 
     return `
-      <article class="student-card">
+      <article class="student-card ${Boolean(student.emailSent) ? 'has-email-sent' : ''}">
         <span class="tag">${escapeHtml(student.status)}</span>
         <div class="student-top">
           <div class="avatar">${escapeHtml(initials)}</div>
           <div class="student-top-info">
             <div class="student-name-row">
               <h3>${escapeHtml(fullName)}</h3>
+              <button type="button"
+                class="btn-email-status-icon ${Boolean(student.emailSent) ? 'is-sent' : ''}"
+                onclick="toggleStudentEmailSent('${student.id}', ${!Boolean(student.emailSent)}, this)"
+                title="${Boolean(student.emailSent) ? 'Email marked sent to student (click to unmark)' : `Email not marked sent to ${escapeHtml(fullName)} (click to mark sent)`}"
+                aria-label="${Boolean(student.emailSent) ? 'Email sent to student' : 'Mark email as sent'}"
+                aria-pressed="${Boolean(student.emailSent) ? 'true' : 'false'}">
+                ${Boolean(student.emailSent) ? `
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h9"/>
+                    <polyline points="22,6 12,13 2,6"/>
+                    <polyline points="16 19 19 22 24 17"/>
+                  </svg>
+                ` : `
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect width="20" height="16" x="2" y="4" rx="2"/>
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                  </svg>
+                `}
+              </button>
               <button type="button"
                 class="btn-approve-class-icon ${Boolean(student.linkApproved) ? 'is-approved' : ''}"
                 onclick="toggleStudentLinkApproval('${student.id}', ${!Boolean(student.linkApproved)}, this)"
@@ -1072,7 +1095,7 @@ function renderStudents(query = '') {
               ` : ''}
             </div>
           </div>
-          <div class="detail">
+          <div class="detail email-detail">
             <small>Email</small>
             <div class="email-row">
               ${student.email ? `<span title="${escapeHtml(student.email)}" class="email-text">${escapeHtml(student.email)}</span>` : '<span>N/A</span>'}
@@ -1082,6 +1105,25 @@ function renderStudents(query = '') {
                     <rect width="20" height="16" x="2" y="4" rx="2"/>
                     <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
                   </svg>
+                </button>
+                <button type="button"
+                  class="btn-email-sent-badge ${Boolean(student.emailSent) ? 'is-sent' : 'is-unsent'}"
+                  onclick="toggleStudentEmailSent('${student.id}', ${!Boolean(student.emailSent)}, this)"
+                  title="${Boolean(student.emailSent) ? 'Email marked as sent (click to unmark)' : 'Email not marked as sent (click to mark sent)'}"
+                  aria-label="${Boolean(student.emailSent) ? 'Email sent to student' : 'Mark email sent'}"
+                  aria-pressed="${Boolean(student.emailSent) ? 'true' : 'false'}">
+                  ${Boolean(student.emailSent) ? `
+                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <span>Sent</span>
+                  ` : `
+                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <line x1="12" y1="5" x2="12" y2="19"/>
+                      <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    <span>Mark Sent</span>
+                  `}
                 </button>
               ` : ''}
             </div>
@@ -1112,7 +1154,7 @@ function renderStudents(query = '') {
           <button type="button"
             class="btn-action email-invite-card-btn"
             onclick="sendStudentEmailAutomatically('${student.id}', this)"
-            title="Send an invitation email to ${escapeHtml(fullName)}">
+            title="${Boolean(student.emailSent) ? `Email already sent to ${escapeHtml(fullName)} — click to send again` : `Send an invitation email to ${escapeHtml(fullName)}`}">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect width="20" height="16" x="2" y="4" rx="2"/>
               <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
@@ -1305,6 +1347,9 @@ function updateStats() {
   setText('#leftGroupPercentage', `${percent(leftGroupCount)}% of total`);
   setText('#leftGroupNewCount', leftGroupNewCount);
   setText('#leftGroupMu3idCount', leftGroupMu3idCount);
+  const emailSentCount = students.filter(student => Boolean(student.emailSent)).length;
+  setText('#emailSentStudents', emailSentCount);
+  setText('#emailSentPercentage', `${percent(emailSentCount)}% of total`);
   setText('#newPercentage', `${percent(newCount)}% of total`);
   setText('#returningPercentage', `${percent(returningCount)}% of total`);
   setText('#fanarCount', fanar);
@@ -1616,6 +1661,20 @@ function setupClassStatClicks() {
     });
   });
 
+  document.querySelectorAll('[data-email-filter]').forEach(el => {
+    el.addEventListener('click', () => {
+      const val = el.dataset.emailFilter;
+      if (!emailSentFilter) return;
+      emailSentFilter.value = (emailSentFilter.value === val) ? '' : val;
+      emailSentFilter.dispatchEvent(new Event('change', { bubbles: true }));
+      scheduleRenderStudents(searchInput ? searchInput.value : '');
+      const recordsGrid = document.querySelector('#recordsGrid');
+      if (recordsGrid) {
+        recordsGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+
   updateActiveStatCardStates();
 }
 
@@ -1623,6 +1682,7 @@ function updateActiveStatCardStates() {
   const activeStatus = statusFilter ? statusFilter.value : '';
   const activeLink = linkFilter ? linkFilter.value : '';
   const activeGroup = groupFilter ? groupFilter.value : '';
+  const activeEmailSent = emailSentFilter ? emailSentFilter.value : '';
 
   document.querySelectorAll('[data-status-filter]').forEach(el => {
     el.classList.toggle('is-active-filter', Boolean(activeStatus && el.dataset.statusFilter === activeStatus));
@@ -1634,6 +1694,9 @@ function updateActiveStatCardStates() {
   });
   document.querySelectorAll('[data-group-filter]').forEach(el => {
     el.classList.toggle('is-active-filter', Boolean(activeGroup && el.dataset.groupFilter === activeGroup));
+  });
+  document.querySelectorAll('[data-email-filter]').forEach(el => {
+    el.classList.toggle('is-active-filter', Boolean(activeEmailSent && el.dataset.emailFilter === activeEmailSent));
   });
 }
 
@@ -1740,6 +1803,42 @@ async function toggleStudentLinkApproval(id, linkApproved, button) {
 }
 
 const toggleStudentClassApproval = toggleStudentLinkApproval;
+
+async function toggleStudentEmailSent(id, emailSent, button) {
+  if (button) button.disabled = true;
+  try {
+    const response = await fetch(`${API_BASE}/students/${id}/email-sent`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`
+      },
+      body: JSON.stringify({ emailSent })
+    });
+    const json = await parseApiResponse(response);
+    if (!json.success) throw new Error(json.error || 'Could not update email sent state');
+
+    const student = students.find(item => String(item.id) === String(id));
+    if (student) {
+      student.emailSent = emailSent;
+    }
+    if (typeof allStudentsMaster !== 'undefined' && Array.isArray(allStudentsMaster)) {
+      const master = allStudentsMaster.find(item => String(item.id) === String(id));
+      if (master && master !== student) {
+        master.emailSent = emailSent;
+      }
+    }
+    updateStats();
+    scheduleRenderStudents(searchInput ? searchInput.value : '');
+    showToast(
+      emailSent ? 'Email Marked Sent' : 'Email Marked Unsent',
+      emailSent ? 'Student marked as email sent.' : 'Email sent status removed for this student.'
+    );
+  } catch (err) {
+    if (button) button.disabled = false;
+    await showPopup({ title: 'Could not update email state', message: err.message, danger: true });
+  }
+}
 
 async function toggleGroupMembership(id, inGroup, button) {
   if (button) button.disabled = true;
@@ -2104,7 +2203,7 @@ if (searchInput) {
   });
 }
 
-[statusFilter, classFilter, majorFilter, campusFilter, languageFilter, groupFilter].forEach(filter => {
+[statusFilter, classFilter, majorFilter, campusFilter, languageFilter, groupFilter, emailSentFilter].forEach(filter => {
   if (filter) filter.addEventListener('change', () => {
     currentStudentPage = 1;
     scheduleRenderStudents(searchInput?.value || '');
@@ -2115,7 +2214,7 @@ if (clearFilters) {
   clearFilters.addEventListener('click', () => {
     currentStudentPage = 1;
     if (searchInput) searchInput.value = '';
-    [statusFilter, classFilter, majorFilter, campusFilter, languageFilter, groupFilter].forEach(filter => {
+    [statusFilter, classFilter, majorFilter, campusFilter, languageFilter, groupFilter, emailSentFilter].forEach(filter => {
       if (filter) {
         filter.value = '';
         filter.dispatchEvent(new Event('change', { bubbles: true }));
@@ -3022,6 +3121,8 @@ function getFilteredStudentsList() {
     const matchesStatus = !statusFilter?.value || String(student.status || '').trim().toLowerCase() === statusFilter.value.trim().toLowerCase();
     const isApproved = Boolean(student.linkApproved !== undefined ? student.linkApproved : student.inClass);
     const matchesLink = !linkFilter?.value || (linkFilter.value === 'approved' || linkFilter.value === 'in' ? isApproved : !isApproved);
+    const matchesEmailSent = !emailSentFilter?.value
+      || (emailSentFilter.value === 'sent' ? Boolean(student.emailSent) : !Boolean(student.emailSent));
     const matchesMajor = !majorFilter?.value || student.major === majorFilter.value;
     const targetCampus = (campusFilter?.value || '').trim().toLowerCase();
     const studentCampus = (student.campus || '').trim().toLowerCase();
@@ -3035,7 +3136,7 @@ function getFilteredStudentsList() {
         : groupFilter.value === 'left' ? Boolean(student.leftGroup)
         : groupFilter.value === 'unassigned' ? (!assignedGroup && !student.leftGroup)
         : groupFilter.value === assignedGroup);
-    return matchesSearch && matchesStatus && matchesLink && matchesMajor && matchesCampus && matchesLanguage && matchesGroup;
+    return matchesSearch && matchesStatus && matchesLink && matchesEmailSent && matchesMajor && matchesCampus && matchesLanguage && matchesGroup;
   });
 }
 
@@ -3250,6 +3351,7 @@ async function sendStudentEmailAutomatically(studentId, button) {
       if (record) {
         record.linkApproved = true;
         record.inClass = true;
+        record.emailSent = true;
       }
     }
     updateStats();
@@ -3377,25 +3479,29 @@ async function executeSendGroupEmail() {
       throw new Error(data.error || 'Failed to send invitation emails');
     }
 
-    // Update link approval in local memory if markApproved was checked
-    if (markApprovedCheck?.checked) {
-      targetIds.forEach(id => {
-        const student = students.find(s => String(s.id) === String(id));
-        if (student) {
+    // Update emailSent and link approval in local memory
+    targetIds.forEach(id => {
+      const student = students.find(s => String(s.id) === String(id));
+      if (student) {
+        student.emailSent = true;
+        if (markApprovedCheck?.checked) {
           student.linkApproved = true;
           student.inClass = true;
         }
-        if (Array.isArray(allStudentsMaster)) {
-          const master = allStudentsMaster.find(s => String(s.id) === String(id));
-          if (master) {
+      }
+      if (Array.isArray(allStudentsMaster)) {
+        const master = allStudentsMaster.find(s => String(s.id) === String(id));
+        if (master) {
+          master.emailSent = true;
+          if (markApprovedCheck?.checked) {
             master.linkApproved = true;
             master.inClass = true;
           }
         }
-      });
-      updateStats();
-      scheduleRenderStudents(searchInput ? searchInput.value : '');
-    }
+      }
+    });
+    updateStats();
+    scheduleRenderStudents(searchInput ? searchInput.value : '');
 
     if (modal) modal.close();
 

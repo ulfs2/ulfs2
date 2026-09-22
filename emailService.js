@@ -457,6 +457,31 @@ Lebanese University — Faculty of Sciences II
 let cachedTransporter = null;
 let etherealAccount = null;
 
+function isCloudflareRuntime() {
+  return process.env.CLOUDFLARE_WORKER === 'true'
+    || Boolean(process.env.CLOUDFLARE || process.env.CF_PAGES);
+}
+
+async function sendMailWithTimeout(transporter, mailOptions, timeoutMs = 18000) {
+  let timeoutId;
+  const timeoutPromise = new Promise((resolve, reject) => {
+    timeoutId = setTimeout(() => {
+      try {
+        if (transporter && typeof transporter.close === 'function') transporter.close();
+      } catch {}
+      const error = new Error(`SMTP server did not respond within ${Math.ceil(timeoutMs / 1000)} seconds`);
+      error.code = 'ETIMEDOUT';
+      reject(error);
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([transporter.sendMail(mailOptions), timeoutPromise]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 const baseDirectory = typeof __dirname !== 'undefined'
   ? __dirname
   : (typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : null);
@@ -854,7 +879,7 @@ async function getTransporter(overrideConfig = null) {
       cleanPass = cleanPass.replace(/\s+/g, '');
     }
 
-    const isCloudflare = Boolean(process.env.CLOUDFLARE || process.env.CF_PAGES || !process.versions?.node);
+    const isCloudflare = isCloudflareRuntime();
     const transportOpts = {
       pool: !isCloudflare,
       maxConnections: 1,
@@ -868,9 +893,9 @@ async function getTransporter(overrideConfig = null) {
         user: config.user.trim(),
         pass: cleanPass
       },
-      connectionTimeout: 15000,
-      greetingTimeout: 15000,
-      socketTimeout: 20000,
+      connectionTimeout: isCloudflare ? 10000 : 15000,
+      greetingTimeout: isCloudflare ? 10000 : 15000,
+      socketTimeout: isCloudflare ? 15000 : 20000,
       dnsTimeout: 5000
     };
 
@@ -1000,14 +1025,14 @@ async function sendInviteEmail({
   while (attempts < 2) {
     attempts++;
     try {
-      info = await transporter.sendMail(mailOptions);
+      info = await sendMailWithTimeout(transporter, mailOptions, isCloudflareRuntime() ? 18000 : 24000);
       break;
     } catch (err) {
       const isRateLimit = isSmtpRateLimitError(err);
       if (isRateLimit) {
         err.isRateLimit = true;
         err.friendlyMessage = 'Your email provider has temporarily throttled sending. Safe pacing is recommended to avoid restriction.';
-        if (attempts < 2 && process.env.NODE_ENV !== 'test') {
+        if (attempts < 2 && process.env.NODE_ENV !== 'test' && !isCloudflareRuntime()) {
           console.warn(`[emailService] SMTP rate limit response detected: "${err.message}". Backing off 3000ms before retry 1/1...`);
           await new Promise(resolve => setTimeout(resolve, 3000));
           continue;
@@ -1106,7 +1131,7 @@ async function sendTestEmail({ to, senderName = 'ULFS2 Administrator', overrideC
     html
   };
 
-  const info = await transporter.sendMail(mailOptions);
+  const info = await sendMailWithTimeout(transporter, mailOptions, isCloudflareRuntime() ? 18000 : 24000);
   let previewUrl = null;
   if (isEthereal && nodemailer.getTestMessageUrl) {
     previewUrl = nodemailer.getTestMessageUrl(info);

@@ -26,6 +26,7 @@ let testStudent = {
   in_group: false,
   left_group: false,
   in_class: false,
+  email_sent: false,
   note: '',
   kazaa: '',
   created_at: new Date().toISOString()
@@ -58,6 +59,12 @@ require.cache[require.resolve('../db')] = {
               if (testStudent.id === value) {
                 if (payload.in_class !== undefined) {
                   testStudent.in_class = payload.in_class;
+                }
+                if (payload.email_sent !== undefined) {
+                  testStudent.email_sent = payload.email_sent;
+                }
+                if (payload.note !== undefined) {
+                  testStudent.note = payload.note;
                 }
                 return {
                   select: () => ({
@@ -399,4 +406,80 @@ test('frontend scripts (email-config.js and script.js) avoid unsafe raw res.json
     assert.equal(rawMatches, null, `Found raw response.json() call in ${file}`);
   }
 });
+
+test('PATCH /api/students/:id/email-sent sets emailSent status and rejects unauthenticated requests', async () => {
+  // Unauthenticated -> 401
+  const unauthRes = await fetch(`${baseUrl}/api/students/${testStudent.id}/email-sent`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ emailSent: true })
+  });
+  assert.equal(unauthRes.status, 401);
+
+  // Valid admin request -> 200 and emailSent: true
+  const patchRes = await fetch(`${baseUrl}/api/students/${testStudent.id}/email-sent`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${adminToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ emailSent: true })
+  });
+  assert.equal(patchRes.status, 200);
+  const patchData = await patchRes.json();
+  assert.equal(patchData.success, true);
+  assert.equal(patchData.emailSent, true);
+  assert.equal(testStudent.email_sent, true);
+
+  // Can unmark emailSent -> false
+  const unmarkRes = await fetch(`${baseUrl}/api/students/${testStudent.id}/email-sent`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${adminToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ emailSent: false })
+  });
+  assert.equal(unmarkRes.status, 200);
+  const unmarkData = await unmarkRes.json();
+  assert.equal(unmarkData.success, true);
+  assert.equal(unmarkData.emailSent, false);
+  assert.equal(testStudent.email_sent, false);
+
+  // Non-existent student -> 404
+  const notFoundRes = await fetch(`${baseUrl}/api/students/non-existent-student/email-sent`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${adminToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ emailSent: true })
+  });
+  assert.equal(notFoundRes.status, 404);
+});
+
+test('POST /api/email/send automatically marks emailSent: true on recipient student', async () => {
+  testStudent.email_sent = false;
+  testStudent.in_class = false;
+
+  const res = await fetch(`${baseUrl}/api/email/send`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${adminToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      studentId: testStudent.id,
+      groupName: 'ULFS2 Informatics Grp A',
+      joinUrl: 'https://chat.whatsapp.com/TESTEMAIL123'
+    })
+  });
+
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.success, true);
+  assert.equal(data.results[0].emailSent, true);
+  assert.equal(testStudent.email_sent, true);
+});
+
 

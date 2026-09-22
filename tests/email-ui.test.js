@@ -51,5 +51,18 @@ test('email-config.html and email-config.js expose Send to All Students button, 
   assert.match(js, /btnStopBroadcast/);
 });
 
+test('email sent filter and student card indicators are present in dashboard and script.js', () => {
+  for (const page of ['dashboard.html', 'index.html']) {
+    const html = fs.readFileSync(path.join(projectRoot, page), 'utf8');
+    assert.match(html, /id="emailSentFilter"/);
+    assert.match(html, /<option value="sent">Email sent<\/option>/);
+    assert.match(html, /<option value="unsent">Email not sent<\/option>/);
+  }
 
-
+  const script = fs.readFileSync(path.join(projectRoot, 'script.js'), 'utf8');
+  assert.match(script, /emailSentFilter/);
+  assert.match(script, /matchesEmailSent/);
+  assert.match(script, /btn-email-status-icon/);
+  assert.match(script, /btn-email-sent-badge/);
+  assert.match(script, /toggleStudentEmailSent/);
+});
