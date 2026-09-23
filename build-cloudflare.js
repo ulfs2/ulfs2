@@ -16,6 +16,7 @@ const assets = [
   'email-config.html',
   'email-config.js',
   'styles.css',
+  'navbar.js',
   'script.js'
 ];
 
