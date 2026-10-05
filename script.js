@@ -1006,7 +1006,7 @@ function renderStudents(query = '') {
     const isFrench = lang.includes('french');
     const isEnglish = lang.includes('english');
     const isLeft = Boolean(student.leftGroup);
-    const groupDisabledAttr = isLeft ? 'disabled title="This student left the group"' : '';
+    const groupDisabledAttr = isLeft ? 'disabled title="This student left the group — click ↩ Left group to undo"' : '';
 
     let groupButtonsHtml = '';
     const assigned = getStudentAssignedGroup(student);
@@ -1263,13 +1263,18 @@ function renderStudents(query = '') {
             class="btn-action group-toggle ${student.inGroup ? 'is-in-group' : ''}"
             onclick="toggleGroupMembership('${student.id}', ${!student.inGroup}, this)"
             aria-pressed="${student.inGroup ? 'true' : 'false'}"
-            ${student.leftGroup ? 'disabled title="This student left the group"' : ''}>
+            ${student.leftGroup ? 'disabled title="This student left the group — click ↩ Left group to undo"' : ''}>
             ${student.leftGroup ? 'In group (disabled)' : (student.inGroup ? (student.assignedGroup ? `✓ In group (${escapeHtml(student.assignedGroup)})` : '✓ In group') : '+ Add to group')}
           </button>
           ${student.inGroup && !student.leftGroup ? `
             <button type="button" class="btn-action left-group"
-              onclick="markStudentLeftGroup('${student.id}', this)">Left group</button>
-          ` : student.leftGroup ? '<span class="left-group-status">Left group</span>' : ''}
+              onclick="markStudentLeftGroup('${student.id}', this)"
+              title="Mark student as having left the group">Left group</button>
+          ` : student.leftGroup ? `
+            <button type="button" class="btn-action left-group is-active"
+              onclick="markStudentLeftGroup('${student.id}', this)"
+              title="Student marked as left group — click again to undo and restore to group">↩ Left group</button>
+          ` : ''}
           <button type="button"
             class="btn-action email-invite-card-btn"
             onclick="sendStudentEmailAutomatically('${student.id}', this)"
@@ -2015,7 +2020,7 @@ async function toggleGroupMembership(id, inGroup, button) {
     const response = await fetch(`${API_BASE}/students/${id}/group`, {
       method: 'PATCH',
       headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ inGroup, assignedGroup: inGroup ? undefined : '' })
+      body: JSON.stringify({ inGroup, leftGroup: false, assignedGroup: inGroup ? undefined : '' })
     });
     const json = await parseApiResponse(response);
     if (!json.success) throw new Error(json.error || 'Could not update group membership');
@@ -2023,12 +2028,14 @@ async function toggleGroupMembership(id, inGroup, button) {
     const student = students.find(item => String(item.id) === String(id));
     if (student) {
       student.inGroup = inGroup;
+      student.leftGroup = false;
       if (!inGroup) student.assignedGroup = '';
     }
     if (typeof allStudentsMaster !== 'undefined' && Array.isArray(allStudentsMaster)) {
       const master = allStudentsMaster.find(item => String(item.id) === String(id));
       if (master && master !== student) {
         master.inGroup = inGroup;
+        master.leftGroup = false;
         if (!inGroup) master.assignedGroup = '';
       }
     }
@@ -2045,48 +2052,157 @@ async function toggleGroupMembership(id, inGroup, button) {
 }
 
 async function markStudentLeftGroup(id, button) {
+  const student = students.find(item => String(item.id) === String(id)) ||
+    (typeof allStudentsMaster !== 'undefined' && Array.isArray(allStudentsMaster) && allStudentsMaster.find(item => String(item.id) === String(id)));
+  if (!student) return;
+
+  const isUndoing = Boolean(student.leftGroup);
+
   if (button) button.disabled = true;
   try {
+    let payload;
+    let restoredGroup = '';
+
+    if (isUndoing) {
+      // User is undoing "Left group" -> restore them to the group
+      restoredGroup = student._prevAssignedGroup || '';
+      if (!restoredGroup && typeof sessionStorage !== 'undefined') {
+        try {
+          restoredGroup = sessionStorage.getItem(`prev_group_${id}`) || '';
+        } catch {}
+      }
+      payload = {
+        inGroup: true,
+        leftGroup: false,
+        assignedGroup: restoredGroup
+      };
+    } else {
+      // User is marking student as having left group
+      const currentAssignedGroup = getStudentAssignedGroup(student) || student.assignedGroup || '';
+      student._prevAssignedGroup = currentAssignedGroup;
+      if (typeof sessionStorage !== 'undefined') {
+        try {
+          if (currentAssignedGroup) {
+            sessionStorage.setItem(`prev_group_${id}`, currentAssignedGroup);
+          } else {
+            sessionStorage.removeItem(`prev_group_${id}`);
+          }
+        } catch {}
+      }
+      payload = {
+        inGroup: false,
+        leftGroup: true,
+        assignedGroup: ''
+      };
+    }
+
     const response = await fetch(`${API_BASE}/students/${id}/group`, {
       method: 'PATCH',
       headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ inGroup: false, leftGroup: true, assignedGroup: '' })
+      body: JSON.stringify(payload)
     });
     const json = await parseApiResponse(response);
-    if (!json.success) throw new Error(json.error || 'Could not mark the student as having left');
+    if (!json.success) {
+      throw new Error(json.error || (isUndoing ? 'Could not restore group membership' : 'Could not mark the student as having left'));
+    }
 
-    const student = students.find(item => String(item.id) === String(id));
-    if (student) {
+    if (isUndoing) {
+      student.inGroup = true;
+      student.leftGroup = false;
+      student.assignedGroup = restoredGroup;
+      delete student._prevAssignedGroup;
+      if (typeof sessionStorage !== 'undefined') {
+        try { sessionStorage.removeItem(`prev_group_${id}`); } catch {}
+      }
+    } else {
       student.inGroup = false;
       student.leftGroup = true;
       student.assignedGroup = '';
     }
+
     if (typeof allStudentsMaster !== 'undefined' && Array.isArray(allStudentsMaster)) {
       const master = allStudentsMaster.find(item => String(item.id) === String(id));
       if (master && master !== student) {
-        master.inGroup = false;
-        master.leftGroup = true;
-        master.assignedGroup = '';
+        if (isUndoing) {
+          master.inGroup = true;
+          master.leftGroup = false;
+          master.assignedGroup = restoredGroup;
+          delete master._prevAssignedGroup;
+        } else {
+          master.inGroup = false;
+          master.leftGroup = true;
+          master.assignedGroup = '';
+          master._prevAssignedGroup = student._prevAssignedGroup;
+        }
       }
     }
+
     updateStats();
     scheduleRenderStudents(searchInput ? searchInput.value : '');
-    showToast('Student left the group', 'The In group option is now disabled for this student.');
+
+    if (isUndoing) {
+      showToast(
+        'Group restored',
+        restoredGroup ? `Student returned to group (${restoredGroup}).` : 'Student returned to group.'
+      );
+    } else {
+      showToast(
+        'Student left group',
+        'Marked as left. Click "↩ Left group" again to undo.',
+        {
+          text: 'Undo',
+          onClick: () => markStudentLeftGroup(id)
+        }
+      );
+    }
   } catch (err) {
     if (button) button.disabled = false;
-    await showPopup({ title: 'Could not update group', message: err.message, danger: true });
+    await showPopup({
+      title: isUndoing ? 'Could not restore group' : 'Could not update group',
+      message: err.message,
+      danger: true
+    });
   }
 }
 
+const toggleStudentLeftGroup = markStudentLeftGroup;
+
 // Show Toast notification
-function showToast(title, message) {
+let toastTimer = null;
+function showToast(title, message, actionOptions = null) {
   if (!toast) return;
   const toastTitle = document.querySelector('#toastTitle');
   const toastMsg = document.querySelector('#toastMsg');
   if (toastTitle) toastTitle.textContent = title;
   if (toastMsg) toastMsg.textContent = message;
+
+  const existingAction = toast.querySelector('.toast-action-btn');
+  if (existingAction) {
+    existingAction.remove();
+  }
+
+  if (actionOptions && actionOptions.text && typeof actionOptions.onClick === 'function') {
+    const actionBtn = document.createElement('button');
+    actionBtn.type = 'button';
+    actionBtn.className = 'toast-action-btn';
+    actionBtn.textContent = actionOptions.text;
+    actionBtn.onclick = (e) => {
+      e.stopPropagation();
+      actionBtn.remove();
+      actionOptions.onClick();
+      toast.classList.remove('show');
+      if (toastTimer) clearTimeout(toastTimer);
+    };
+    toast.appendChild(actionBtn);
+  }
+
   toast.classList.add('show');
-  window.setTimeout(() => toast.classList.remove('show'), 3500);
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => {
+    toast.classList.remove('show');
+    const btn = toast.querySelector('.toast-action-btn');
+    if (btn) btn.remove();
+  }, actionOptions ? 6000 : 3500);
 }
 
 function showPopup({ title, message, confirmLabel = 'OK', cancelLabel = 'Cancel', showCancel = false, danger = false, icon }) {

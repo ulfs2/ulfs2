@@ -1082,6 +1082,17 @@ legend { padding: 0; }
   border-color: #fdba74;
 }
 .btn-action.left-group:hover { background: #ffedd5; }
+.btn-action.left-group.is-active {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fca5a5;
+  font-weight: 800;
+}
+.btn-action.left-group.is-active:hover {
+  background: #fecaca;
+  color: #991b1b;
+  border-color: #f87171;
+}
 .left-group-status {
   padding: 7px 12px;
   border-radius: 8px;
@@ -1363,6 +1374,23 @@ legend { padding: 0; }
 }
 .toast p { margin: 0; font-size: 12px; }
 .toast small { display: block; color: #fed7aa; margin-top: 3px; }
+.toast-action-btn {
+  margin-left: auto;
+  background: #ffffff;
+  color: #7c2d12;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+.toast-action-btn:hover {
+  background: #ffedd5;
+  color: #9a3412;
+}
 
 /* LOGIN PAGE STYLES */
 .login-page {
@@ -2304,6 +2332,32 @@ html[data-theme="dark"] .stat-card.clickable-stat.is-active-filter {
 html[data-theme="dark"] .stat-card.group-stat-card { border-color: #14532d; }
 html[data-theme="dark"] .stat-card.link-stat-card { border-color: #14532d; }
 html[data-theme="dark"] .stat-card.left-group-stat-card { border-color: #7f1d1d; }
+html[data-theme="dark"] .btn-action.left-group {
+  background: #2a150c;
+  color: #fb923c;
+  border-color: #7c2d12;
+}
+html[data-theme="dark"] .btn-action.left-group:hover {
+  background: #3c2014;
+}
+html[data-theme="dark"] .btn-action.left-group.is-active {
+  background: #3b1111;
+  color: #fca5a5;
+  border-color: #991b1b;
+}
+html[data-theme="dark"] .btn-action.left-group.is-active:hover {
+  background: #4c1d1d;
+  color: #fee2e2;
+  border-color: #b91c1c;
+}
+html[data-theme="dark"] .toast-action-btn {
+  background: #2a150c;
+  color: #fb923c;
+}
+html[data-theme="dark"] .toast-action-btn:hover {
+  background: #3c2014;
+  color: #fed7aa;
+}
 html[data-theme="dark"] .stat-card .stat-status-tags { border-top-color: var(--line); }
 html[data-theme="dark"] .stat-pill.pill-new {
   background: #3c2014;

@@ -143,6 +143,52 @@ test('marking student leftGroup clears assignedGroup', async () => {
   assert.equal(json.data.assignedGroup, '');
 });
 
+test('undoing leftGroup restores inGroup and assignedGroup', async () => {
+  // First set group
+  await fetch(url('/api/students/00000000-0000-0000-0000-000000000001/group'), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ inGroup: true, assignedGroup: 'Grp C,D' })
+  });
+
+  // Mark left group
+  await fetch(url('/api/students/00000000-0000-0000-0000-000000000001/group'), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ inGroup: false, leftGroup: true, assignedGroup: '' })
+  });
+
+  // Now undo/redo by setting leftGroup: false and restoring inGroup and assignedGroup
+  const res = await fetch(url('/api/students/00000000-0000-0000-0000-000000000001/group'), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ inGroup: true, leftGroup: false, assignedGroup: 'Grp C,D' })
+  });
+  assert.equal(res.status, 200);
+  const json = await res.json();
+  assert.equal(json.success, true);
+  assert.equal(json.data.leftGroup, false);
+  assert.equal(json.data.inGroup, true);
+  assert.equal(json.data.assignedGroup, 'Grp C,D');
+});
+
+test('frontend script.js exposes toggleable Left group button and undo capability', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const code = fs.readFileSync(path.join(__dirname, '..', 'script.js'), 'utf8');
+
+  // Verify left-group is-active button is rendered when student.leftGroup is true
+  assert.match(code, /class="btn-action left-group is-active"/);
+  assert.match(code, />↩ Left group<\/button>/);
+
+  // Verify undo logic in markStudentLeftGroup
+  assert.match(code, /const isUndoing = Boolean\(student\.leftGroup\)/);
+  assert.match(code, /toggleStudentLeftGroup = markStudentLeftGroup/);
+
+  // Verify toast with undo option
+  assert.match(code, /toast-action-btn/);
+});
+
 test('PATCH /api/students/:id/link-approval sets linkApproved and inClass independently from inGroup', async () => {
   const resTrue = await fetch(url('/api/students/00000000-0000-0000-0000-000000000001/link-approval'), {
     method: 'PATCH',
