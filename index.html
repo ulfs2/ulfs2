@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=3.2">
+  <link rel="stylesheet" href="styles.css?v=3.3">
 </head>
 <body data-page="dashboard">
   <div class="grain"></div>
@@ -532,7 +532,23 @@
 
       <div class="directory-heading">
         <div><span>Student directory</span><h3>All Student Records</h3></div>
-        <small id="directorySummary">0 students</small>
+        <div class="directory-heading-controls">
+          <small id="directorySummary">0 students</small>
+          <div class="view-mode-toggle" id="viewModeToggle" role="group" aria-label="View mode layout">
+            <button type="button" class="view-mode-btn is-active" id="viewModeCardsBtn" data-view="cards" title="Cards view" aria-pressed="true">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+              </svg>
+              <span>Cards</span>
+            </button>
+            <button type="button" class="view-mode-btn" id="viewModeTableBtn" data-view="table" title="Compact table view" aria-pressed="false">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+              </svg>
+              <span>Table</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       <div class="search-wrap">
@@ -576,6 +592,27 @@
 
       <div id="recordsGrid" class="records-grid"></div>
 
+      <div id="recordsTableWrap" class="records-table-wrap" hidden>
+        <div class="table-responsive">
+          <table class="records-table" id="recordsTable" aria-label="Student directory table">
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>Status</th>
+                <th>Major / Level</th>
+                <th>Campus / Lang</th>
+                <th>Contact</th>
+                <th>Group Assignment</th>
+                <th>Link Approved</th>
+                <th>Email Sent</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="recordsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
       <div id="emptyState" class="empty-state">
         <div class="empty-icon">📁</div>
         <h3>No students found</h3>
@@ -593,6 +630,6 @@
   <div class="toast" id="toast" role="status"><span>✓</span><p><b id="toastTitle">Student saved</b><small id="toastMsg">The record was saved securely to student-os.com.</small></p></div>
 
   <script src="navbar.js?v=1.1"></script>
-  <script src="script.js?v=3.2"></script>
+  <script src="script.js?v=3.3"></script>
 </body>
 </html>
