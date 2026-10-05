@@ -1,2 +1,20 @@
-/*
+/*.html
   Cache-Control: no-cache, must-revalidate
+
+/
+  Cache-Control: no-cache, must-revalidate
+
+/styles.css
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/script.js
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/navbar.js
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/kazaa-page.js
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/email-config.js
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800

@@ -511,13 +511,115 @@ function invalidateUserCache(id) {
 
 let studentsMasterCache = null;
 let studentsMasterCacheTime = 0;
-let studentsCacheVersion = Date.now();
+let studentsCacheVersion = 0;
 const STUDENTS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes (invalidated on student mutations)
+
+function getStudentsCacheVersion() {
+  if (!studentsCacheVersion || studentsCacheVersion === 0) {
+    studentsCacheVersion = Date.now() || 1728169200000;
+  }
+  return studentsCacheVersion;
+}
 
 function invalidateStudentsCache() {
   studentsMasterCache = null;
   studentsMasterCacheTime = 0;
-  studentsCacheVersion = Date.now();
+  studentsCacheVersion = Date.now() || (getStudentsCacheVersion() + 1);
+  if (db && ('invalidateDbStatusCache' in db) && typeof db.invalidateDbStatusCache === 'function') {
+    db.invalidateDbStatusCache();
+  }
+}
+
+async function getCachedStudentsMaster() {
+  // 1. In-memory check first (fastest, 0ms)
+  if (studentsMasterCache && (Date.now() - studentsMasterCacheTime < STUDENTS_CACHE_TTL)) {
+    return studentsMasterCache.map(s => ({ ...s }));
+  }
+
+  // 2. Cloudflare Worker Edge Cache check (caches.default, ~1-3ms across isolates)
+  const version = getStudentsCacheVersion();
+  const cacheKeyUrl = `https://cache.student-os.internal/master-students-v${version}.json`;
+  if (typeof caches !== 'undefined' && caches && caches.default) {
+    try {
+      const cacheKey = new Request(cacheKeyUrl, { method: 'GET' });
+      const edgeMatch = await caches.default.match(cacheKey);
+      if (edgeMatch) {
+        const list = await edgeMatch.json();
+        if (Array.isArray(list) && list.length > 0) {
+          studentsMasterCache = list;
+          studentsMasterCacheTime = Date.now();
+          return list.map(s => ({ ...s }));
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 3. Query database & decrypt
+  let studentList = [];
+  if (supabase) {
+    const { data, error } = await supabase.from('students').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    studentList = (data || []).filter(r => !isSystemStudent(r)).map(mapStudent);
+  } else {
+    const { rows } = await pool.query(`
+      SELECT 
+        note,
+        kazaa,
+        id, 
+        first_name AS "firstName", 
+        father_name AS "fatherName", 
+        family_name AS "familyName", 
+        origin, 
+        address, 
+        school, 
+        major, 
+        political_affiliation AS "politicalAffiliation",
+        status, 
+        language, 
+        campus, 
+        phone, 
+        email, 
+        in_group AS "inGroup",
+        left_group AS "leftGroup",
+        created_at AS "createdAt"
+      FROM students 
+      ORDER BY created_at DESC;
+    `);
+    studentList = rows.map(row => {
+      const mapped = mapStudent(row);
+      return {
+        ...row,
+        ...mapped,
+        note: readStudentNote(row.note),
+        kazaa: row.kazaa ? decryptValue(row.kazaa, 'students.kazaa') : '',
+        section: mapped.section,
+        linkApproved: mapped.linkApproved,
+        inClass: mapped.inClass,
+        emailSent: mapped.emailSent,
+        assignedGroup: mapped.assignedGroup
+      };
+    });
+  }
+
+  studentsMasterCache = studentList;
+  studentsMasterCacheTime = Date.now();
+
+  // Populate Cloudflare Worker Edge Cache
+  if (typeof caches !== 'undefined' && caches && caches.default && Array.isArray(studentList)) {
+    try {
+      const cacheKey = new Request(cacheKeyUrl, { method: 'GET' });
+      const edgeResponse = new Response(JSON.stringify(studentList), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'public, max-age=600'
+        }
+      });
+      await caches.default.put(cacheKey, edgeResponse);
+    } catch (_) {}
+  }
+
+  return studentList.map(s => ({ ...s }));
 }
 
 const hasLocalFilesystem = typeof __dirname !== 'undefined';
@@ -1143,62 +1245,22 @@ app.get('/api/students', async (req, res) => {
     } catch {}
   }
   const querySection = req.query.section ? String(req.query.section).toLowerCase() : null;
+  const isAndrew = await isCallerAndrew(session, req);
+
+  const version = getStudentsCacheVersion();
+  const etag = `"W/students-${version}-${isAndrew ? 'andrew' : 'normal'}-${callerRole || 'anon'}-${callerSection}-${querySection || 'all'}"`;
+  res.setHeader('ETag', etag);
+  res.setHeader('Cache-Control', 'private, no-cache, must-revalidate');
+
+  const ifNoneMatch = req.headers['if-none-match'];
+  if (ifNoneMatch && ifNoneMatch === etag) {
+    return res.status(304).end();
+  }
 
   try {
-    let studentList = [];
-    if (studentsMasterCache && (Date.now() - studentsMasterCacheTime < STUDENTS_CACHE_TTL)) {
-      studentList = studentsMasterCache.map(s => ({ ...s }));
-    } else {
-      if (supabase) {
-        const { data, error } = await supabase.from('students').select('*').order('created_at', { ascending: false });
-        if (error) throw error;
-        studentList = (data || []).filter(r => !isSystemStudent(r)).map(mapStudent);
-      } else {
-        const { rows } = await pool.query(`
-          SELECT 
-            note,
-            kazaa,
-            id, 
-            first_name AS "firstName", 
-            father_name AS "fatherName", 
-            family_name AS "familyName", 
-            origin, 
-            address, 
-            school, 
-            major, 
-            political_affiliation AS "politicalAffiliation",
-            status, 
-            language, 
-            campus, 
-            phone, 
-            email, 
-            in_group AS "inGroup",
-            left_group AS "leftGroup",
-            created_at AS "createdAt"
-          FROM students 
-          ORDER BY created_at DESC;
-        `);
-        studentList = rows.map(row => {
-          const mapped = mapStudent(row);
-          return {
-            ...row,
-            ...mapped,
-            note: readStudentNote(row.note),
-            kazaa: row.kazaa ? decryptValue(row.kazaa, 'students.kazaa') : '',
-            section: mapped.section,
-            linkApproved: mapped.linkApproved,
-            inClass: mapped.inClass,
-            emailSent: mapped.emailSent,
-            assignedGroup: mapped.assignedGroup
-          };
-        });
-      }
-      studentsMasterCache = studentList;
-      studentsMasterCacheTime = Date.now();
-    }
+    let studentList = await getCachedStudentsMaster();
 
     // Filter by section
-    const isAndrew = await isCallerAndrew(session, req);
     if (!isAndrew) {
       studentList = studentList.filter(s => !ADVANCED_CS_SECTIONS.includes(String(s.section || '').toLowerCase()));
     }
@@ -1212,15 +1274,6 @@ app.get('/api/students', async (req, res) => {
 
     if (isDeleg) {
       studentList = studentList.map(s => ({ ...s, politicalAffiliation: '', note: '' }));
-    }
-
-    const etag = `"W/students-${studentsCacheVersion}-${isAndrew ? 'andrew' : 'normal'}-${callerRole || 'anon'}-${callerSection}-${querySection || 'all'}"`;
-    res.setHeader('ETag', etag);
-    res.setHeader('Cache-Control', 'private, no-cache, must-revalidate');
-
-    const ifNoneMatch = req.headers['if-none-match'];
-    if (ifNoneMatch && ifNoneMatch === etag) {
-      return res.status(304).end();
     }
 
     return res.json({ success: true, data: studentList });

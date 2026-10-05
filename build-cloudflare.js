@@ -25,8 +25,26 @@ for (const asset of assets) {
   fs.copyFileSync(path.join(__dirname, asset), path.join(outputDirectory, asset));
 }
 
-const headersContent = `/*
+const headersContent = `/*.html
   Cache-Control: no-cache, must-revalidate
+
+/
+  Cache-Control: no-cache, must-revalidate
+
+/styles.css
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/script.js
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/navbar.js
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/kazaa-page.js
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/email-config.js
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
 `;
 fs.writeFileSync(path.join(outputDirectory, '_headers'), headersContent);
 fs.writeFileSync(path.join(__dirname, '_headers'), headersContent);

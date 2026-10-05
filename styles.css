@@ -5545,3 +5545,30 @@ html[data-theme="dark"] .topbar .nav-link.active:not(.btn-nav) {
   }
   .topbar .nav-link span { display: none; }
 }
+
+/* Skeleton Loading State for Cold Cache Page Load */
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.85; }
+}
+
+.skeleton-card {
+  pointer-events: none;
+  animation: skeletonPulse 1.5s ease-in-out infinite;
+  min-height: 250px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.skeleton-bone {
+  background: var(--ink);
+  opacity: 0.08;
+  border-radius: 6px;
+}
+
+html[data-theme="dark"] .skeleton-bone {
+  background: #ffffff;
+  opacity: 0.09;
+}

@@ -1965,7 +1965,33 @@ async function setStudentAssignedGroup(id, targetGroup, button) {
     if (!confirmed) return;
   }
 
-  if (button) button.disabled = true;
+  // Backup for optimistic rollback
+  const prevInGroup = student.inGroup;
+  const prevAssignedGroup = student.assignedGroup;
+  const prevLeftGroup = student.leftGroup;
+
+  // Optimistic UI update (0ms visual response)
+  student.inGroup = nextInGroup;
+  student.assignedGroup = nextGroup;
+  student.leftGroup = false;
+
+  if (typeof allStudentsMaster !== 'undefined' && Array.isArray(allStudentsMaster)) {
+    const master = allStudentsMaster.find(item => String(item.id) === String(id));
+    if (master && master !== student) {
+      master.inGroup = nextInGroup;
+      master.assignedGroup = nextGroup;
+      master.leftGroup = false;
+    }
+    saveStudentsToLocalCache(allStudentsMaster);
+  }
+
+  updateStats();
+  scheduleRenderStudents(searchInput ? searchInput.value : '');
+  showToast(
+    nextGroup ? `Assigned to ${nextGroup}` : 'Group assignment removed',
+    nextGroup ? `The student is now assigned to ${nextGroup}.` : 'The student has no assigned group section.'
+  );
+
   try {
     const response = await fetch(`${API_BASE}/students/${id}/group`, {
       method: 'PATCH',
@@ -1978,35 +2004,51 @@ async function setStudentAssignedGroup(id, targetGroup, button) {
     });
     const json = await parseApiResponse(response);
     if (!json.success) throw new Error(json.error || 'Could not update assigned group');
-
-    student.inGroup = nextInGroup;
-    student.assignedGroup = nextGroup;
-    student.leftGroup = false;
-
+  } catch (err) {
+    // Revert on failure
+    student.inGroup = prevInGroup;
+    student.assignedGroup = prevAssignedGroup;
+    student.leftGroup = prevLeftGroup;
     if (typeof allStudentsMaster !== 'undefined' && Array.isArray(allStudentsMaster)) {
       const master = allStudentsMaster.find(item => String(item.id) === String(id));
       if (master && master !== student) {
-        master.inGroup = nextInGroup;
-        master.assignedGroup = nextGroup;
-        master.leftGroup = false;
+        master.inGroup = prevInGroup;
+        master.assignedGroup = prevAssignedGroup;
+        master.leftGroup = prevLeftGroup;
       }
       saveStudentsToLocalCache(allStudentsMaster);
     }
-
     updateStats();
     scheduleRenderStudents(searchInput ? searchInput.value : '');
-    showToast(
-      nextGroup ? `Assigned to ${nextGroup}` : 'Group assignment removed',
-      nextGroup ? `The student is now assigned to ${nextGroup}.` : 'The student has no assigned group section.'
-    );
-  } catch (err) {
-    if (button) button.disabled = false;
     await showPopup({ title: 'Could not update group', message: err.message, danger: true });
   }
 }
 
 async function toggleStudentLinkApproval(id, linkApproved, button) {
-  if (button) button.disabled = true;
+  const student = students.find(item => String(item.id) === String(id));
+  if (!student) return;
+
+  const prevLinkApproved = student.linkApproved;
+  const prevInClass = student.inClass;
+
+  // Optimistic UI update (0ms visual response)
+  student.linkApproved = linkApproved;
+  student.inClass = linkApproved;
+  if (typeof allStudentsMaster !== 'undefined' && Array.isArray(allStudentsMaster)) {
+    const master = allStudentsMaster.find(item => String(item.id) === String(id));
+    if (master && master !== student) {
+      master.linkApproved = linkApproved;
+      master.inClass = linkApproved;
+    }
+    saveStudentsToLocalCache(allStudentsMaster);
+  }
+  updateStats();
+  scheduleRenderStudents(searchInput ? searchInput.value : '');
+  showToast(
+    linkApproved ? 'Link Sent & Approved' : 'Approval Removed',
+    linkApproved ? 'Student marked as link sent & approved to joined group.' : 'Link approval was removed for this student.'
+  );
+
   try {
     const response = await fetch(`${API_BASE}/students/${id}/link-approval`, {
       method: 'PATCH',
@@ -2015,28 +2057,20 @@ async function toggleStudentLinkApproval(id, linkApproved, button) {
     });
     const json = await parseApiResponse(response);
     if (!json.success) throw new Error(json.error || 'Could not update link approval');
-
-    const student = students.find(item => String(item.id) === String(id));
-    if (student) {
-      student.linkApproved = linkApproved;
-      student.inClass = linkApproved;
-    }
+  } catch (err) {
+    // Rollback
+    student.linkApproved = prevLinkApproved;
+    student.inClass = prevInClass;
     if (typeof allStudentsMaster !== 'undefined' && Array.isArray(allStudentsMaster)) {
       const master = allStudentsMaster.find(item => String(item.id) === String(id));
       if (master && master !== student) {
-        master.linkApproved = linkApproved;
-        master.inClass = linkApproved;
+        master.linkApproved = prevLinkApproved;
+        master.inClass = prevInClass;
       }
       saveStudentsToLocalCache(allStudentsMaster);
     }
     updateStats();
     scheduleRenderStudents(searchInput ? searchInput.value : '');
-    showToast(
-      linkApproved ? 'Link Sent & Approved' : 'Approval Removed',
-      linkApproved ? 'Student marked as link sent & approved to joined group.' : 'Link approval was removed for this student.'
-    );
-  } catch (err) {
-    if (button) button.disabled = false;
     await showPopup({ title: 'Could not update approval', message: err.message, danger: true });
   }
 }
@@ -2044,7 +2078,27 @@ async function toggleStudentLinkApproval(id, linkApproved, button) {
 const toggleStudentClassApproval = toggleStudentLinkApproval;
 
 async function toggleStudentEmailSent(id, emailSent, button) {
-  if (button) button.disabled = true;
+  const student = students.find(item => String(item.id) === String(id));
+  if (!student) return;
+
+  const prevEmailSent = student.emailSent;
+
+  // Optimistic UI update (0ms visual response)
+  student.emailSent = emailSent;
+  if (typeof allStudentsMaster !== 'undefined' && Array.isArray(allStudentsMaster)) {
+    const master = allStudentsMaster.find(item => String(item.id) === String(id));
+    if (master && master !== student) {
+      master.emailSent = emailSent;
+    }
+    saveStudentsToLocalCache(allStudentsMaster);
+  }
+  updateStats();
+  scheduleRenderStudents(searchInput ? searchInput.value : '');
+  showToast(
+    emailSent ? 'Email Marked Sent' : 'Email Marked Unsent',
+    emailSent ? 'Student marked as email sent.' : 'Email sent status removed for this student.'
+  );
+
   try {
     const response = await fetch(`${API_BASE}/students/${id}/email-sent`, {
       method: 'PATCH',
@@ -2053,32 +2107,50 @@ async function toggleStudentEmailSent(id, emailSent, button) {
     });
     const json = await parseApiResponse(response);
     if (!json.success) throw new Error(json.error || 'Could not update email sent state');
-
-    const student = students.find(item => String(item.id) === String(id));
-    if (student) {
-      student.emailSent = emailSent;
-    }
+  } catch (err) {
+    // Rollback
+    student.emailSent = prevEmailSent;
     if (typeof allStudentsMaster !== 'undefined' && Array.isArray(allStudentsMaster)) {
       const master = allStudentsMaster.find(item => String(item.id) === String(id));
       if (master && master !== student) {
-        master.emailSent = emailSent;
+        master.emailSent = prevEmailSent;
       }
       saveStudentsToLocalCache(allStudentsMaster);
     }
     updateStats();
     scheduleRenderStudents(searchInput ? searchInput.value : '');
-    showToast(
-      emailSent ? 'Email Marked Sent' : 'Email Marked Unsent',
-      emailSent ? 'Student marked as email sent.' : 'Email sent status removed for this student.'
-    );
-  } catch (err) {
-    if (button) button.disabled = false;
     await showPopup({ title: 'Could not update email state', message: err.message, danger: true });
   }
 }
 
 async function toggleGroupMembership(id, inGroup, button) {
-  if (button) button.disabled = true;
+  const student = students.find(item => String(item.id) === String(id));
+  if (!student) return;
+
+  const prevInGroup = student.inGroup;
+  const prevLeftGroup = student.leftGroup;
+  const prevAssignedGroup = student.assignedGroup;
+
+  // Optimistic UI update (0ms visual response)
+  student.inGroup = inGroup;
+  student.leftGroup = false;
+  if (!inGroup) student.assignedGroup = '';
+  if (typeof allStudentsMaster !== 'undefined' && Array.isArray(allStudentsMaster)) {
+    const master = allStudentsMaster.find(item => String(item.id) === String(id));
+    if (master && master !== student) {
+      master.inGroup = inGroup;
+      master.leftGroup = false;
+      if (!inGroup) master.assignedGroup = '';
+    }
+    saveStudentsToLocalCache(allStudentsMaster);
+  }
+  updateStats();
+  scheduleRenderStudents(searchInput ? searchInput.value : '');
+  showToast(
+    inGroup ? 'Added to group' : 'Removed from group',
+    inGroup ? 'The student is now in the group.' : 'The student is no longer in the group.'
+  );
+
   try {
     const response = await fetch(`${API_BASE}/students/${id}/group`, {
       method: 'PATCH',
@@ -2087,30 +2159,22 @@ async function toggleGroupMembership(id, inGroup, button) {
     });
     const json = await parseApiResponse(response);
     if (!json.success) throw new Error(json.error || 'Could not update group membership');
-
-    const student = students.find(item => String(item.id) === String(id));
-    if (student) {
-      student.inGroup = inGroup;
-      student.leftGroup = false;
-      if (!inGroup) student.assignedGroup = '';
-    }
+  } catch (err) {
+    // Rollback
+    student.inGroup = prevInGroup;
+    student.leftGroup = prevLeftGroup;
+    student.assignedGroup = prevAssignedGroup;
     if (typeof allStudentsMaster !== 'undefined' && Array.isArray(allStudentsMaster)) {
       const master = allStudentsMaster.find(item => String(item.id) === String(id));
       if (master && master !== student) {
-        master.inGroup = inGroup;
-        master.leftGroup = false;
-        if (!inGroup) master.assignedGroup = '';
+        master.inGroup = prevInGroup;
+        master.leftGroup = prevLeftGroup;
+        master.assignedGroup = prevAssignedGroup;
       }
       saveStudentsToLocalCache(allStudentsMaster);
     }
     updateStats();
     scheduleRenderStudents(searchInput ? searchInput.value : '');
-    showToast(
-      inGroup ? 'Added to group' : 'Removed from group',
-      inGroup ? 'The student is now in the group.' : 'The student is no longer in the group.'
-    );
-  } catch (err) {
-    if (button) button.disabled = false;
     await showPopup({ title: 'Could not update group', message: err.message, danger: true });
   }
 }
@@ -2121,45 +2185,94 @@ async function markStudentLeftGroup(id, button) {
   if (!student) return;
 
   const isUndoing = Boolean(student.leftGroup);
+  const prevInGroup = student.inGroup;
+  const prevLeftGroup = student.leftGroup;
+  const prevAssignedGroup = student.assignedGroup;
+  const prevStoredGroup = student._prevAssignedGroup;
 
-  if (button) button.disabled = true;
-  try {
-    let payload;
-    let restoredGroup = '';
+  let payload;
+  let restoredGroup = '';
 
-    if (isUndoing) {
-      // User is undoing "Left group" -> restore them to the group
-      restoredGroup = student._prevAssignedGroup || '';
-      if (!restoredGroup && typeof sessionStorage !== 'undefined') {
-        try {
-          restoredGroup = sessionStorage.getItem(`prev_group_${id}`) || '';
-        } catch {}
-      }
-      payload = {
-        inGroup: true,
-        leftGroup: false,
-        assignedGroup: restoredGroup
-      };
-    } else {
-      // User is marking student as having left group
-      const currentAssignedGroup = getStudentAssignedGroup(student) || student.assignedGroup || '';
-      student._prevAssignedGroup = currentAssignedGroup;
-      if (typeof sessionStorage !== 'undefined') {
-        try {
-          if (currentAssignedGroup) {
-            sessionStorage.setItem(`prev_group_${id}`, currentAssignedGroup);
-          } else {
-            sessionStorage.removeItem(`prev_group_${id}`);
-          }
-        } catch {}
-      }
-      payload = {
-        inGroup: false,
-        leftGroup: true,
-        assignedGroup: ''
-      };
+  if (isUndoing) {
+    restoredGroup = student._prevAssignedGroup || '';
+    if (!restoredGroup && typeof sessionStorage !== 'undefined') {
+      try {
+        restoredGroup = sessionStorage.getItem(`prev_group_${id}`) || '';
+      } catch {}
     }
+    payload = {
+      inGroup: true,
+      leftGroup: false,
+      assignedGroup: restoredGroup
+    };
+    student.inGroup = true;
+    student.leftGroup = false;
+    student.assignedGroup = restoredGroup;
+    delete student._prevAssignedGroup;
+    if (typeof sessionStorage !== 'undefined') {
+      try { sessionStorage.removeItem(`prev_group_${id}`); } catch {}
+    }
+  } else {
+    const currentAssignedGroup = getStudentAssignedGroup(student) || student.assignedGroup || '';
+    student._prevAssignedGroup = currentAssignedGroup;
+    if (typeof sessionStorage !== 'undefined') {
+      try {
+        if (currentAssignedGroup) {
+          sessionStorage.setItem(`prev_group_${id}`, currentAssignedGroup);
+        } else {
+          sessionStorage.removeItem(`prev_group_${id}`);
+        }
+      } catch {}
+    }
+    payload = {
+      inGroup: false,
+      leftGroup: true,
+      assignedGroup: ''
+    };
+    student.inGroup = false;
+    student.leftGroup = true;
+    student.assignedGroup = '';
+  }
 
+  // Optimistic UI update (0ms instant response)
+  if (typeof allStudentsMaster !== 'undefined' && Array.isArray(allStudentsMaster)) {
+    const master = allStudentsMaster.find(item => String(item.id) === String(id));
+    if (master && master !== student) {
+      if (isUndoing) {
+        master.inGroup = true;
+        master.leftGroup = false;
+        master.assignedGroup = restoredGroup;
+        delete master._prevAssignedGroup;
+      } else {
+        master.inGroup = false;
+        master.leftGroup = true;
+        master.assignedGroup = '';
+        master._prevAssignedGroup = student._prevAssignedGroup;
+      }
+    }
+    saveStudentsToLocalCache(allStudentsMaster);
+  }
+
+  updateStats();
+  scheduleRenderStudents(searchInput ? searchInput.value : '');
+
+  if (isUndoing) {
+    showToast(
+      'Group restored',
+      restoredGroup ? `Student returned to group (${restoredGroup}).` : 'Student returned to group.'
+    );
+  } else {
+    showToast(
+      'Student left group',
+      'Marked as left. Click "↩ Left group" again to undo.',
+      {
+        text: 'Undo',
+        onClick: () => markStudentLeftGroup(id)
+      }
+    );
+  }
+
+  try {
     const response = await fetch(`${API_BASE}/students/${id}/group`, {
       method: 'PATCH',
       headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
@@ -2169,59 +2282,24 @@ async function markStudentLeftGroup(id, button) {
     if (!json.success) {
       throw new Error(json.error || (isUndoing ? 'Could not restore group membership' : 'Could not mark the student as having left'));
     }
-
-    if (isUndoing) {
-      student.inGroup = true;
-      student.leftGroup = false;
-      student.assignedGroup = restoredGroup;
-      delete student._prevAssignedGroup;
-      if (typeof sessionStorage !== 'undefined') {
-        try { sessionStorage.removeItem(`prev_group_${id}`); } catch {}
-      }
-    } else {
-      student.inGroup = false;
-      student.leftGroup = true;
-      student.assignedGroup = '';
-    }
-
+  } catch (err) {
+    // Rollback
+    student.inGroup = prevInGroup;
+    student.leftGroup = prevLeftGroup;
+    student.assignedGroup = prevAssignedGroup;
+    if (prevStoredGroup !== undefined) student._prevAssignedGroup = prevStoredGroup;
     if (typeof allStudentsMaster !== 'undefined' && Array.isArray(allStudentsMaster)) {
       const master = allStudentsMaster.find(item => String(item.id) === String(id));
       if (master && master !== student) {
-        if (isUndoing) {
-          master.inGroup = true;
-          master.leftGroup = false;
-          master.assignedGroup = restoredGroup;
-          delete master._prevAssignedGroup;
-        } else {
-          master.inGroup = false;
-          master.leftGroup = true;
-          master.assignedGroup = '';
-          master._prevAssignedGroup = student._prevAssignedGroup;
-        }
+        master.inGroup = prevInGroup;
+        master.leftGroup = prevLeftGroup;
+        master.assignedGroup = prevAssignedGroup;
+        if (prevStoredGroup !== undefined) master._prevAssignedGroup = prevStoredGroup;
       }
       saveStudentsToLocalCache(allStudentsMaster);
     }
-
     updateStats();
     scheduleRenderStudents(searchInput ? searchInput.value : '');
-
-    if (isUndoing) {
-      showToast(
-        'Group restored',
-        restoredGroup ? `Student returned to group (${restoredGroup}).` : 'Student returned to group.'
-      );
-    } else {
-      showToast(
-        'Student left group',
-        'Marked as left. Click "↩ Left group" again to undo.',
-        {
-          text: 'Undo',
-          onClick: () => markStudentLeftGroup(id)
-        }
-      );
-    }
-  } catch (err) {
-    if (button) button.disabled = false;
     await showPopup({
       title: isUndoing ? 'Could not restore group' : 'Could not update group',
       message: err.message,
@@ -4072,6 +4150,30 @@ function setupEmailInviteUI() {
   }
 }
 
+function renderSkeletonCards() {
+  if (!recordsGrid || (Array.isArray(allStudentsMaster) && allStudentsMaster.length > 0)) return;
+  const skeletonCardsHtml = Array.from({ length: 6 }).map(() => `
+    <article class="student-card skeleton-card" aria-hidden="true">
+      <div class="skeleton-bone" style="width: 50px; height: 18px; margin-bottom: 12px;"></div>
+      <div class="student-top" style="margin-bottom: 16px;">
+        <div class="skeleton-bone" style="width: 44px; height: 44px; border-radius: 50%;"></div>
+        <div class="student-top-info" style="flex: 1; margin-left: 12px;">
+          <div class="skeleton-bone" style="width: 60%; height: 18px; margin-bottom: 8px;"></div>
+          <div class="skeleton-bone" style="width: 40%; height: 14px;"></div>
+        </div>
+      </div>
+      <div class="student-details" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px;">
+        <div class="skeleton-bone" style="height: 14px;"></div>
+        <div class="skeleton-bone" style="height: 14px;"></div>
+        <div class="skeleton-bone" style="height: 14px;"></div>
+        <div class="skeleton-bone" style="height: 14px;"></div>
+      </div>
+      <div class="skeleton-bone" style="height: 34px; border-radius: 8px;"></div>
+    </article>
+  `).join('');
+  recordsGrid.innerHTML = skeletonCardsHtml;
+}
+
 // Page Initialization
 document.addEventListener('DOMContentLoaded', () => {
   setupThemeToggle();
@@ -4088,13 +4190,18 @@ document.addEventListener('DOMContentLoaded', () => {
   if (document.body.dataset.page === 'login') return;
   checkDbConnection();
   if (document.body.dataset.page !== 'kazaa') {
-    loadStudentsFromLocalCache();
+    const hasCachedData = loadStudentsFromLocalCache();
+    if (!hasCachedData && recordsGrid) {
+      renderSkeletonCards();
+    }
     fetchStudents();
   }
   loadPendingUsers();
   loadAllUsers();
   loadBackupStatus();
   initFormEditMode();
-  // Periodically re-verify DB connection status
-  setInterval(checkDbConnection, 15000);
+  // Periodically re-verify DB connection status (only once every 60s and only when tab is active)
+  setInterval(() => {
+    if (!document.hidden) checkDbConnection();
+  }, 60000);
 });

@@ -130,21 +130,33 @@ async function initDb() {
   }
 }
 
-async function checkDbConnection() {
+let dbStatusCache = null;
+let dbStatusCacheTime = 0;
+const DB_STATUS_CACHE_TTL = 60 * 1000; // 60 seconds
+
+function invalidateDbStatusCache() {
+  dbStatusCache = null;
+  dbStatusCacheTime = 0;
+}
+
+async function checkDbConnection(force = false) {
+  if (!force && dbStatusCache && (Date.now() - dbStatusCacheTime < DB_STATUS_CACHE_TTL)) {
+    return { ...dbStatusCache };
+  }
   try {
+    let result = null;
     const client = getSupabase();
     if (client) {
       const { count, error } = await client.from('students').select('*', { count: 'exact', head: true });
       if (error) throw error;
-      return {
+      result = {
         connected: true,
         provider: 'Supabase',
         database: 'Supabase students table',
         count: count || 0,
         message: 'Connected through the Supabase API'
       };
-    }
-    if (isSupabaseRequested()) {
+    } else if (isSupabaseRequested()) {
       return {
         connected: false,
         provider: 'Supabase',
@@ -152,18 +164,24 @@ async function checkDbConnection() {
         count: 0,
         message: 'SUPABASE_SECRET_KEY or SUPABASE_PUBLISHABLE_KEY is missing or invalid'
       };
+    } else {
+      const clientPool = await pool.connect();
+      const res = await clientPool.query('SELECT COUNT(*) FROM students;');
+      clientPool.release();
+      const isSupabase = connectionString && (connectionString.includes('supabase.co') || connectionString.includes('supabase.com'));
+      result = {
+        connected: true,
+        provider: isSupabase ? 'Supabase PostgreSQL' : 'PostgreSQL',
+        database: isSupabase ? 'Supabase (tcwapqlphdxuqpgyrybq)' : (poolConfig.database || 'PostgreSQL'),
+        count: parseInt(res.rows[0].count, 10),
+        message: isSupabase ? 'Connected to Supabase PostgreSQL Database' : 'PostgreSQL database connected'
+      };
     }
-    const clientPool = await pool.connect();
-    const res = await clientPool.query('SELECT COUNT(*) FROM students;');
-    clientPool.release();
-    const isSupabase = connectionString && (connectionString.includes('supabase.co') || connectionString.includes('supabase.com'));
-    return {
-      connected: true,
-      provider: isSupabase ? 'Supabase PostgreSQL' : 'PostgreSQL',
-      database: isSupabase ? 'Supabase (tcwapqlphdxuqpgyrybq)' : (poolConfig.database || 'PostgreSQL'),
-      count: parseInt(res.rows[0].count, 10),
-      message: isSupabase ? 'Connected to Supabase PostgreSQL Database' : 'PostgreSQL database connected'
-    };
+    if (result && result.connected) {
+      dbStatusCache = result;
+      dbStatusCacheTime = Date.now();
+    }
+    return result;
   } catch (err) {
     return {
       connected: false,
@@ -188,6 +206,7 @@ const dbExport = {
   },
   initDb,
   checkDbConnection,
+  invalidateDbStatusCache,
   getSupabase,
   isSupabaseRequested,
   initSupabase: getSupabase
