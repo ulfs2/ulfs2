@@ -189,6 +189,30 @@ test('frontend script.js exposes toggleable Left group button and undo capabilit
   assert.match(code, /toast-action-btn/);
 });
 
+test('GET /api/students returns ETag and handles 304 Not Modified', async () => {
+  const res1 = await fetch(url('/api/students'));
+  assert.equal(res1.status, 200);
+  const etag = res1.headers.get('etag');
+  assert.ok(etag, 'Expected ETag header');
+
+  const res2 = await fetch(url('/api/students'), {
+    headers: { 'If-None-Match': etag }
+  });
+  assert.equal(res2.status, 304);
+});
+
+test('frontend script.js implements local SWR caching and ETag revalidation', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const code = fs.readFileSync(path.join(__dirname, '..', 'script.js'), 'utf8');
+
+  assert.match(code, /loadStudentsFromLocalCache/);
+  assert.match(code, /saveStudentsToLocalCache/);
+  assert.match(code, /getStudentsCacheKey/);
+  assert.match(code, /getStudentsEtagKey/);
+  assert.match(code, /res\.status === 304/);
+});
+
 test('PATCH /api/students/:id/link-approval sets linkApproved and inClass independently from inGroup', async () => {
   const resTrue = await fetch(url('/api/students/00000000-0000-0000-0000-000000000001/link-approval'), {
     method: 'PATCH',

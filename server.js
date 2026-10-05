@@ -499,7 +499,7 @@ app.use((req, res, next) => {
 const APP_VERSION = '2.4.1';
 
 const userCache = new Map();
-const USER_CACHE_TTL = 15000;
+const USER_CACHE_TTL = 5 * 60 * 1000; // 5 minutes (invalidated on user updates)
 
 function invalidateUserCache(id) {
   if (id) {
@@ -511,11 +511,13 @@ function invalidateUserCache(id) {
 
 let studentsMasterCache = null;
 let studentsMasterCacheTime = 0;
-const STUDENTS_CACHE_TTL = 15000;
+let studentsCacheVersion = Date.now();
+const STUDENTS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes (invalidated on student mutations)
 
 function invalidateStudentsCache() {
   studentsMasterCache = null;
   studentsMasterCacheTime = 0;
+  studentsCacheVersion = Date.now();
 }
 
 const hasLocalFilesystem = typeof __dirname !== 'undefined';
@@ -1210,6 +1212,15 @@ app.get('/api/students', async (req, res) => {
 
     if (isDeleg) {
       studentList = studentList.map(s => ({ ...s, politicalAffiliation: '', note: '' }));
+    }
+
+    const etag = `"W/students-${studentsCacheVersion}-${isAndrew ? 'andrew' : 'normal'}-${callerRole || 'anon'}-${callerSection}-${querySection || 'all'}"`;
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'private, no-cache, must-revalidate');
+
+    const ifNoneMatch = req.headers['if-none-match'];
+    if (ifNoneMatch && ifNoneMatch === etag) {
+      return res.status(304).end();
     }
 
     return res.json({ success: true, data: studentList });

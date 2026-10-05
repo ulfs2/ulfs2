@@ -415,6 +415,10 @@ function checkAuth() {
 // Logout handler
 if (logoutBtn) {
   logoutBtn.addEventListener('click', () => {
+    try {
+      localStorage.removeItem(getStudentsCacheKey());
+      localStorage.removeItem(getStudentsEtagKey());
+    } catch {}
     localStorage.removeItem('hub_user');
     localStorage.removeItem('hub_token');
     showToast('Logged out', 'You have been signed out successfully.');
@@ -844,6 +848,50 @@ async function checkDbConnection() {
 let currentDashboardSection = 'all';
 let allStudentsMaster = [];
 
+function getStudentsCacheKey() {
+  const user = getCurrentUser();
+  const uid = user.id || user.username || 'anon';
+  return `student_hub_students_cache_${uid}`;
+}
+
+function getStudentsEtagKey() {
+  const user = getCurrentUser();
+  const uid = user.id || user.username || 'anon';
+  return `student_hub_students_etag_${uid}`;
+}
+
+function saveStudentsToLocalCache(data, etag = '') {
+  try {
+    if (Array.isArray(data)) {
+      localStorage.setItem(getStudentsCacheKey(), JSON.stringify(data));
+      if (etag) {
+        localStorage.setItem(getStudentsEtagKey(), etag);
+      }
+    }
+  } catch (e) {
+    console.warn('Could not save students to localStorage cache:', e);
+  }
+}
+
+function loadStudentsFromLocalCache() {
+  try {
+    const raw = localStorage.getItem(getStudentsCacheKey());
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (Array.isArray(data) && data.length) {
+      allStudentsMaster = data;
+      applySectionFilter();
+      if (typeof updateVCardExportModalStats === 'function') {
+        updateVCardExportModalStats();
+      }
+      return true;
+    }
+  } catch (e) {
+    console.warn('Could not load students from localStorage cache:', e);
+  }
+  return false;
+}
+
 function applySectionFilter() {
   currentStudentPage = 1;
   const userRole = getCurrentUserRole();
@@ -862,16 +910,28 @@ function applySectionFilter() {
   renderStudents(searchInput ? searchInput.value : '');
 }
 
-// Fetch all students from backend
+// Fetch all students from backend with SWR (Stale-While-Revalidate) & ETag support
 async function fetchStudents() {
   try {
     const url = `${API_BASE}/students`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('hub_token') || ''}` }
-    });
+    const cachedEtag = localStorage.getItem(getStudentsEtagKey()) || '';
+    const headers = getAuthHeaders();
+    if (cachedEtag && Array.isArray(allStudentsMaster) && allStudentsMaster.length > 0) {
+      headers['If-None-Match'] = cachedEtag;
+    }
+
+    const res = await fetch(url, { headers });
+
+    // 304 Not Modified: Client cache is already up-to-date!
+    if (res.status === 304) {
+      return;
+    }
+
     const json = await parseApiResponse(res);
     if (json.success) {
+      const etag = res.headers.get('ETag') || '';
       allStudentsMaster = json.data || [];
+      saveStudentsToLocalCache(allStudentsMaster, etag);
       applySectionFilter();
       if (typeof updateVCardExportModalStats === 'function') {
         updateVCardExportModalStats();
@@ -1930,6 +1990,7 @@ async function setStudentAssignedGroup(id, targetGroup, button) {
         master.assignedGroup = nextGroup;
         master.leftGroup = false;
       }
+      saveStudentsToLocalCache(allStudentsMaster);
     }
 
     updateStats();
@@ -1966,6 +2027,7 @@ async function toggleStudentLinkApproval(id, linkApproved, button) {
         master.linkApproved = linkApproved;
         master.inClass = linkApproved;
       }
+      saveStudentsToLocalCache(allStudentsMaster);
     }
     updateStats();
     scheduleRenderStudents(searchInput ? searchInput.value : '');
@@ -2001,6 +2063,7 @@ async function toggleStudentEmailSent(id, emailSent, button) {
       if (master && master !== student) {
         master.emailSent = emailSent;
       }
+      saveStudentsToLocalCache(allStudentsMaster);
     }
     updateStats();
     scheduleRenderStudents(searchInput ? searchInput.value : '');
@@ -2038,6 +2101,7 @@ async function toggleGroupMembership(id, inGroup, button) {
         master.leftGroup = false;
         if (!inGroup) master.assignedGroup = '';
       }
+      saveStudentsToLocalCache(allStudentsMaster);
     }
     updateStats();
     scheduleRenderStudents(searchInput ? searchInput.value : '');
@@ -2135,6 +2199,7 @@ async function markStudentLeftGroup(id, button) {
           master._prevAssignedGroup = student._prevAssignedGroup;
         }
       }
+      saveStudentsToLocalCache(allStudentsMaster);
     }
 
     updateStats();
@@ -2276,6 +2341,7 @@ async function deleteStudentRecord(id) {
     if (json.success) {
       showToast('Record deleted', 'The student record was removed.');
       allStudentsMaster = allStudentsMaster.filter(s => String(s.id) !== String(id));
+      saveStudentsToLocalCache(allStudentsMaster);
       applySectionFilter();
       checkDbConnection();
     } else {
@@ -2845,6 +2911,11 @@ function setupNotes() {
       if (!response.ok || !json.success) throw new Error(json.error || 'Could not save note.');
       const student = students.find(item => item.id === studentId);
       if (student) student.note = json.data.note;
+      if (typeof allStudentsMaster !== 'undefined' && Array.isArray(allStudentsMaster)) {
+        const master = allStudentsMaster.find(item => String(item.id) === String(studentId));
+        if (master && master !== student) master.note = json.data.note;
+        saveStudentsToLocalCache(allStudentsMaster);
+      }
       renderStudents(searchInput ? searchInput.value : '');
       dialog.close();
       showToast('Note saved', 'The note was saved to this student’s record.');
@@ -4016,7 +4087,10 @@ document.addEventListener('DOMContentLoaded', () => {
   setupEmailInviteUI();
   if (document.body.dataset.page === 'login') return;
   checkDbConnection();
-  if (document.body.dataset.page !== 'kazaa') fetchStudents();
+  if (document.body.dataset.page !== 'kazaa') {
+    loadStudentsFromLocalCache();
+    fetchStudents();
+  }
   loadPendingUsers();
   loadAllUsers();
   loadBackupStatus();
