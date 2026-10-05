@@ -107,10 +107,6 @@ const signupForm = document.querySelector('#signupForm');
 const pendingUsers = document.querySelector('#pendingUsers');
 const allUsersList = document.querySelector('#allUsersList');
 const recordsGrid = document.querySelector('#recordsGrid');
-const recordsTableWrap = document.querySelector('#recordsTableWrap');
-const recordsTableBody = document.querySelector('#recordsTableBody');
-const viewModeCardsBtn = document.querySelector('#viewModeCardsBtn');
-const viewModeTableBtn = document.querySelector('#viewModeTableBtn');
 const emptyState = document.querySelector('#emptyState');
 const recordCount = document.querySelector('#recordCount');
 const searchInput = document.querySelector('#searchInput');
@@ -958,501 +954,11 @@ function scheduleRenderStudents(query = '') {
 }
 
 const STUDENTS_PER_PAGE = 20;
-const TABLE_STUDENTS_PER_PAGE = 30;
 let currentStudentPage = 1;
-
-const STORAGE_KEY_VIEW_MODE = 'student_os_view_mode';
-
-function getViewMode() {
-  try {
-    const val = localStorage.getItem(STORAGE_KEY_VIEW_MODE);
-    if (val === 'table') return 'table';
-  } catch {}
-  return 'cards';
-}
-
-function getPageSize() {
-  return getViewMode() === 'table' ? TABLE_STUDENTS_PER_PAGE : STUDENTS_PER_PAGE;
-}
-
-function updateViewModeButtons(mode = getViewMode()) {
-  const isTable = mode === 'table';
-  if (viewModeCardsBtn) {
-    viewModeCardsBtn.classList.toggle('is-active', !isTable);
-    viewModeCardsBtn.setAttribute('aria-pressed', !isTable ? 'true' : 'false');
-  }
-  if (viewModeTableBtn) {
-    viewModeTableBtn.classList.toggle('is-active', isTable);
-    viewModeTableBtn.setAttribute('aria-pressed', isTable ? 'true' : 'false');
-  }
-}
-
-function setViewMode(mode) {
-  const nextMode = mode === 'table' ? 'table' : 'cards';
-  try {
-    localStorage.setItem(STORAGE_KEY_VIEW_MODE, nextMode);
-  } catch {}
-  updateViewModeButtons(nextMode);
-  currentStudentPage = 1;
-  renderStudents(searchInput ? searchInput.value : '');
-}
-
-function setupViewModeToggle() {
-  updateViewModeButtons();
-  if (viewModeCardsBtn) {
-    viewModeCardsBtn.addEventListener('click', () => {
-      if (getViewMode() !== 'cards') {
-        setViewMode('cards');
-      }
-    });
-  }
-  if (viewModeTableBtn) {
-    viewModeTableBtn.addEventListener('click', () => {
-      if (getViewMode() !== 'table') {
-        setViewMode('table');
-      }
-    });
-  }
-}
-
-function renderStudentGroupSectionActions(student, isLeft, groupDisabledAttr) {
-  let groupButtonsHtml = '';
-  const assigned = getStudentAssignedGroup(student);
-  const studentSec = (student.section || inferSectionFromMajor(student.major) || 'mispce').toLowerCase();
-  const lang = (student.language || '').trim().toLowerCase();
-  const campus = (student.campus || '').trim().toLowerCase();
-  const isAmchit = campus.includes('amchit') || campus.includes('amshit');
-  const isFrench = lang.includes('french');
-  const isEnglish = lang.includes('english');
-
-  if (studentSec === 'l2') {
-    if (isFrench) {
-      const isL2FR = assigned === 'L2 FR';
-      groupButtonsHtml = `
-        <div class="group-section-actions">
-          <button type="button"
-            class="btn-action group-section-btn ${isL2FR ? 'is-active' : ''}"
-            onclick="setStudentAssignedGroup('${student.id}', 'L2 FR', this)"
-            aria-pressed="${isL2FR ? 'true' : 'false'}"
-            ${groupDisabledAttr}>
-            ${isL2FR ? '✓ L2 FR' : 'L2 FR'}
-          </button>
-        </div>
-      `;
-    } else if (isEnglish) {
-      const isL2ENG = assigned === 'L2 ENG';
-      groupButtonsHtml = `
-        <div class="group-section-actions">
-          <button type="button"
-            class="btn-action group-section-btn ${isL2ENG ? 'is-active' : ''}"
-            onclick="setStudentAssignedGroup('${student.id}', 'L2 ENG', this)"
-            aria-pressed="${isL2ENG ? 'true' : 'false'}"
-            ${groupDisabledAttr}>
-            ${isL2ENG ? '✓ L2 ENG' : 'L2 ENG'}
-          </button>
-        </div>
-      `;
-    }
-  } else if (studentSec === 'l3') {
-    if (isFrench) {
-      const isL3FR = assigned === 'L3 FR';
-      groupButtonsHtml = `
-        <div class="group-section-actions">
-          <button type="button"
-            class="btn-action group-section-btn ${isL3FR ? 'is-active' : ''}"
-            onclick="setStudentAssignedGroup('${student.id}', 'L3 FR', this)"
-            aria-pressed="${isL3FR ? 'true' : 'false'}"
-            ${groupDisabledAttr}>
-            ${isL3FR ? '✓ L3 FR' : 'L3 FR'}
-          </button>
-        </div>
-      `;
-    } else if (isEnglish) {
-      const isL3ENG = assigned === 'L3 ENG';
-      groupButtonsHtml = `
-        <div class="group-section-actions">
-          <button type="button"
-            class="btn-action group-section-btn ${isL3ENG ? 'is-active' : ''}"
-            onclick="setStudentAssignedGroup('${student.id}', 'L3 ENG', this)"
-            aria-pressed="${isL3ENG ? 'true' : 'false'}"
-            ${groupDisabledAttr}>
-            ${isL3ENG ? '✓ L3 ENG' : 'L3 ENG'}
-          </button>
-        </div>
-      `;
-    }
-  } else if (studentSec === 'm1') {
-    const isM1FR = assigned === 'M1 FR';
-    groupButtonsHtml = `
-      <div class="group-section-actions">
-        <button type="button"
-          class="btn-action group-section-btn ${isM1FR ? 'is-active' : ''}"
-          onclick="setStudentAssignedGroup('${student.id}', 'M1 FR', this)"
-          aria-pressed="${isM1FR ? 'true' : 'false'}"
-          ${groupDisabledAttr}>
-          ${isM1FR ? '✓ M1 FR' : 'M1 FR'}
-        </button>
-      </div>
-    `;
-  } else if (isAmchit) {
-    const isAmchitActive = assigned === 'Amchit';
-    groupButtonsHtml = `
-        <div class="group-section-actions">
-          <button type="button"
-            class="btn-action group-section-btn ${isAmchitActive ? 'is-active' : ''}"
-            onclick="setStudentAssignedGroup('${student.id}', 'Amchit', this)"
-            aria-pressed="${isAmchitActive ? 'true' : 'false'}"
-            ${groupDisabledAttr}>
-            ${isAmchitActive ? '✓ Amchit' : 'Amchit'}
-          </button>
-        </div>
-    `;
-  } else if (isFrench) {
-    const isA = assigned === 'Grp A';
-    const isB = assigned === 'Grp B';
-    const isCD = assigned === 'Grp C,D';
-    groupButtonsHtml = `
-        <div class="group-section-actions">
-          <button type="button"
-            class="btn-action group-section-btn ${isA ? 'is-active' : ''}"
-            onclick="setStudentAssignedGroup('${student.id}', 'Grp A', this)"
-            aria-pressed="${isA ? 'true' : 'false'}"
-            ${groupDisabledAttr}>
-            ${isA ? '✓ Grp A' : 'Grp A'}
-          </button>
-          <button type="button"
-            class="btn-action group-section-btn ${isB ? 'is-active' : ''}"
-            onclick="setStudentAssignedGroup('${student.id}', 'Grp B', this)"
-            aria-pressed="${isB ? 'true' : 'false'}"
-            ${groupDisabledAttr}>
-            ${isB ? '✓ Grp B' : 'Grp B'}
-          </button>
-          <button type="button"
-            class="btn-action group-section-btn ${isCD ? 'is-active' : ''}"
-            onclick="setStudentAssignedGroup('${student.id}', 'Grp C,D', this)"
-            aria-pressed="${isCD ? 'true' : 'false'}"
-            ${groupDisabledAttr}>
-            ${isCD ? '✓ Grp C,D' : 'Grp C,D'}
-          </button>
-        </div>
-    `;
-  } else if (isEnglish) {
-    const isE1 = assigned === 'Grp E1';
-    const isE2 = assigned === 'Grp E2';
-    groupButtonsHtml = `
-        <div class="group-section-actions">
-          <button type="button"
-            class="btn-action group-section-btn ${isE1 ? 'is-active' : ''}"
-            onclick="setStudentAssignedGroup('${student.id}', 'Grp E1', this)"
-            aria-pressed="${isE1 ? 'true' : 'false'}"
-            ${groupDisabledAttr}>
-            ${isE1 ? '✓ Grp E1' : 'Grp E1'}
-          </button>
-          <button type="button"
-            class="btn-action group-section-btn ${isE2 ? 'is-active' : ''}"
-            onclick="setStudentAssignedGroup('${student.id}', 'Grp E2', this)"
-            aria-pressed="${isE2 ? 'true' : 'false'}"
-            ${groupDisabledAttr}>
-            ${isE2 ? '✓ Grp E2' : 'Grp E2'}
-          </button>
-        </div>
-    `;
-  }
-  return groupButtonsHtml;
-}
-
-function renderStudentCard(student, isDeleg) {
-  const fullName = `${student.firstName} ${student.fatherName} ${student.familyName}`;
-  const initials = `${student.firstName?.[0] || ''}${student.familyName?.[0] || ''}`.toUpperCase();
-  const isLeft = Boolean(student.leftGroup);
-  const groupDisabledAttr = isLeft ? 'disabled title="This student left the group — click ↩ Left group to undo"' : '';
-  const groupButtonsHtml = renderStudentGroupSectionActions(student, isLeft, groupDisabledAttr);
-  const studentSec = (student.section || inferSectionFromMajor(student.major) || 'mispce').toLowerCase();
-
-  return `
-    <article class="student-card ${Boolean(student.emailSent) ? 'has-email-sent' : ''}">
-      <span class="tag">${escapeHtml(student.status)}</span>
-      <div class="student-top">
-        <div class="avatar">${escapeHtml(initials)}</div>
-        <div class="student-top-info">
-          <div class="student-name-row">
-            <h3>${escapeHtml(fullName)}</h3>
-            <button type="button"
-              class="btn-email-status-icon ${Boolean(student.emailSent) ? 'is-sent' : ''}"
-              onclick="toggleStudentEmailSent('${student.id}', ${!Boolean(student.emailSent)}, this)"
-              title="${Boolean(student.emailSent) ? 'Email marked sent to student (click to unmark)' : `Email not marked sent to ${escapeHtml(fullName)} (click to mark sent)`}"
-              aria-label="${Boolean(student.emailSent) ? 'Email sent to student' : 'Mark email as sent'}"
-              aria-pressed="${Boolean(student.emailSent) ? 'true' : 'false'}">
-              ${Boolean(student.emailSent) ? `
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h9"/>
-                  <polyline points="22,6 12,13 2,6"/>
-                  <polyline points="16 19 19 22 24 17"/>
-                </svg>
-              ` : `
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <rect width="20" height="16" x="2" y="4" rx="2"/>
-                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
-                </svg>
-              `}
-            </button>
-            <button type="button"
-              class="btn-approve-class-icon ${Boolean(student.linkApproved) ? 'is-approved' : ''}"
-              onclick="toggleStudentLinkApproval('${student.id}', ${!Boolean(student.linkApproved)}, this)"
-              title="${Boolean(student.linkApproved) ? 'Link sent & approved joined group' : `Send link & approve ${escapeHtml(fullName)} joined group`}"
-              aria-label="${Boolean(student.linkApproved) ? 'Link sent & approved joined group' : `Send link & approve ${escapeHtml(fullName)} joined group`}"
-              aria-pressed="${Boolean(student.linkApproved) ? 'true' : 'false'}">
-              ${Boolean(student.linkApproved) ? `
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-              ` : `
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <line x1="5" y1="12" x2="19" y2="12"/>
-                  <polyline points="12 5 19 12 12 19"/>
-                </svg>
-              `}
-            </button>
-          </div>
-          <p>${escapeHtml(student.major)} • ${escapeHtml(studentSec.toUpperCase())}${student.fileNumber ? ` • File #${escapeHtml(student.fileNumber)}` : ''}</p>
-        </div>
-      </div>
-      <div class="student-details">
-        <div class="detail"><small>Major</small><span title="${escapeHtml(student.major)}">${escapeHtml(student.major)}</span></div>
-        <div class="detail"><small>Section</small><span>${escapeHtml(studentSec.toUpperCase())}</span></div>
-        ${student.fileNumber ? `<div class="detail"><small>File Number</small><span title="File #${escapeHtml(student.fileNumber)}"><b>#${escapeHtml(student.fileNumber)}</b></span></div>` : ''}
-        <div class="detail"><small>School</small><span title="${escapeHtml(student.school)}">${escapeHtml(student.school)}</span></div>
-        <div class="detail"><small>Campus</small><span>${escapeHtml(student.campus)}</span></div>
-        <div class="detail"><small>Language</small><span>${escapeHtml(student.language)}</span></div>
-        <div class="detail">
-          <small>Phone</small>
-          <div class="phone-row">
-            ${student.phone ? `<a href="tel:${escapeHtml(String(student.phone).trim())}" class="phone-link" title="Call ${escapeHtml(fullName)}">${escapeHtml(student.phone)}</a>` : '<span>N/A</span>'}
-            ${student.phone ? `
-              <button type="button" class="btn-contact-quick" onclick="saveStudentContact('${student.id}')" title="Save ${escapeHtml(fullName)} to contacts" aria-label="Save ${escapeHtml(fullName)} to phone contacts">
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
-                </svg>
-              </button>
-            ` : ''}
-          </div>
-        </div>
-        <div class="detail email-detail">
-          <small>Email</small>
-          <div class="email-row">
-            ${student.email ? `<span title="${escapeHtml(student.email)}" class="email-text">${escapeHtml(student.email)}</span>` : '<span>N/A</span>'}
-            ${student.email ? `
-              <button type="button" class="btn-contact-quick btn-email-quick" onclick="openEmailModalForStudent('${student.id}')" title="Send invitation email to ${escapeHtml(fullName)}" aria-label="Send invitation email to ${escapeHtml(fullName)}">
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <rect width="20" height="16" x="2" y="4" rx="2"/>
-                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
-                </svg>
-              </button>
-              <button type="button"
-                class="btn-email-sent-badge ${Boolean(student.emailSent) ? 'is-sent' : 'is-unsent'}"
-                onclick="toggleStudentEmailSent('${student.id}', ${!Boolean(student.emailSent)}, this)"
-                title="${Boolean(student.emailSent) ? 'Email marked as sent (click to unmark)' : 'Email not marked as sent (click to mark sent)'}"
-                aria-label="${Boolean(student.emailSent) ? 'Email sent to student' : 'Mark email sent'}"
-                aria-pressed="${Boolean(student.emailSent) ? 'true' : 'false'}">
-                ${Boolean(student.emailSent) ? `
-                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <polyline points="20 6 9 17 4 12"/>
-                  </svg>
-                  <span>Sent</span>
-                ` : `
-                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <line x1="12" y1="5" x2="12" y2="19"/>
-                    <line x1="5" y1="12" x2="19" y2="12"/>
-                  </svg>
-                  <span>Mark Sent</span>
-                `}
-              </button>
-            ` : ''}
-          </div>
-        </div>
-        <div class="detail"><small>Origin</small><span>${escapeHtml(student.origin || 'N/A')}</span></div>
-        ${!isDeleg ? `
-        <div class="detail political-detail">
-          <small>Political affiliation</small>
-          ${student.politicalAffiliation ? `
-            <span class="political-value" aria-live="polite">••••••••</span>
-            <button type="button" class="reveal-affiliation" data-student-id="${escapeHtml(student.id)}" aria-expanded="false">Show affiliation</button>
-          ` : '<span>Not provided</span>'}
-        </div>` : ''}
-      </div>
-      ${!isDeleg && student.note ? `<div class="student-note"><strong>Note</strong><p>${escapeHtml(student.note)}</p></div>` : ''}
-      <div class="card-actions">
-        <button type="button"
-          class="btn-action group-toggle ${student.inGroup ? 'is-in-group' : ''}"
-          onclick="toggleGroupMembership('${student.id}', ${!student.inGroup}, this)"
-          aria-pressed="${student.inGroup ? 'true' : 'false'}"
-          ${student.leftGroup ? 'disabled title="This student left the group — click ↩ Left group to undo"' : ''}>
-          ${student.leftGroup ? 'In group (disabled)' : (student.inGroup ? (student.assignedGroup ? `✓ In group (${escapeHtml(student.assignedGroup)})` : '✓ In group') : '+ Add to group')}
-        </button>
-        ${student.inGroup && !student.leftGroup ? `
-          <button type="button" class="btn-action left-group"
-            onclick="markStudentLeftGroup('${student.id}', this)"
-            title="Mark student as having left the group">Left group</button>
-        ` : student.leftGroup ? `
-          <button type="button" class="btn-action left-group is-active"
-            onclick="markStudentLeftGroup('${student.id}', this)"
-            title="Student marked as left group — click again to undo and restore to group">↩ Left group</button>
-        ` : ''}
-        <button type="button"
-          class="btn-action email-invite-card-btn"
-          onclick="sendStudentEmailAutomatically('${student.id}', this)"
-          title="${Boolean(student.emailSent) ? `Email already sent to ${escapeHtml(fullName)} — click to send again` : `Send an invitation email to ${escapeHtml(fullName)}`}">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect width="20" height="16" x="2" y="4" rx="2"/>
-            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
-          </svg>
-          Send Email
-        </button>
-        ${groupButtonsHtml}
-        ${!isDeleg ? `
-        <div class="record-edit-actions">
-        <a class="btn-action edit" href="form.html?edit=${student.id}">Edit record</a>
-        <button type="button" class="btn-action student-note-button" data-student-id="${escapeHtml(student.id)}">${student.note ? 'Edit Note' : 'Add Note'}</button>
-        <button type="button" class="btn-action delete" onclick="deleteStudentRecord('${student.id}')">Delete</button>
-        </div>` : ''}
-      </div>
-    </article>
-  `;
-}
-
-function renderStudentTableRow(student, isDeleg) {
-  const fullName = `${student.firstName} ${student.fatherName} ${student.familyName}`.trim();
-  const initials = `${student.firstName?.[0] || ''}${student.familyName?.[0] || ''}`.toUpperCase();
-  const isLeft = Boolean(student.leftGroup);
-  const groupDisabledAttr = isLeft ? 'disabled title="This student left the group — click ↩ Left group to undo"' : '';
-  const groupButtonsHtml = renderStudentGroupSectionActions(student, isLeft, groupDisabledAttr);
-  const studentSec = (student.section || inferSectionFromMajor(student.major) || 'mispce').toLowerCase();
-  const campus = (student.campus || '').trim().toLowerCase();
-  const isAmchit = campus.includes('amchit') || campus.includes('amshit');
-
-  return `
-    <tr class="student-table-row ${Boolean(student.emailSent) ? 'has-email-sent' : ''}" data-student-id="${escapeHtml(student.id)}">
-      <td>
-        <div class="table-student-cell">
-          <div class="avatar-sm" aria-hidden="true">${escapeHtml(initials)}</div>
-          <div class="table-student-names">
-            <strong class="student-name-text">${escapeHtml(fullName)}</strong>
-            <span class="student-sub-meta">
-              ${student.school ? `<span class="school-tag" title="${escapeHtml(student.school)}">${escapeHtml(student.school)}</span>` : ''}
-              ${student.school && student.origin ? ' • ' : ''}
-              ${student.origin ? `<span>${escapeHtml(student.origin)}</span>` : ''}
-            </span>
-          </div>
-        </div>
-      </td>
-      <td>
-        <span class="status-pill status-${student.status === 'New' ? 'new' : 'mu3id'}">${escapeHtml(student.status || 'New')}</span>
-        ${student.fileNumber ? `<span class="file-num-pill" title="File #${escapeHtml(student.fileNumber)}">#${escapeHtml(student.fileNumber)}</span>` : ''}
-      </td>
-      <td class="cell-academic">
-        <span class="major-name" title="${escapeHtml(student.major)}">${escapeHtml(student.major || '')}</span>
-        <span class="section-tag">${escapeHtml(studentSec.toUpperCase())}</span>
-      </td>
-      <td class="cell-campus-lang">
-        <span class="campus-badge campus-${isAmchit ? 'amshit' : 'fanar'}">${escapeHtml(student.campus || 'Fanar')}</span>
-        <span class="lang-badge">${escapeHtml(student.language || 'French')}</span>
-      </td>
-      <td>
-        <div class="table-contact-cell">
-          ${student.phone ? `
-            <a href="tel:${escapeHtml(String(student.phone).trim())}" class="table-phone-link" title="Call ${escapeHtml(fullName)}">
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-              <span>${escapeHtml(student.phone)}</span>
-            </a>
-          ` : '<span style="font-size:11px;color:var(--muted)">No phone</span>'}
-          ${student.email ? `
-            <button type="button" class="table-email-link" onclick="openEmailModalForStudent('${student.id}')" title="Send email to ${escapeHtml(fullName)}">
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-              <span style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(student.email)}</span>
-            </button>
-          ` : '<span style="font-size:11px;color:var(--muted)">No email</span>'}
-        </div>
-      </td>
-      <td class="cell-group">
-        <div class="table-group-actions">
-          <button type="button"
-            class="btn-action group-toggle ${student.inGroup ? 'is-in-group' : ''}"
-            onclick="toggleGroupMembership('${student.id}', ${!student.inGroup}, this)"
-            aria-pressed="${student.inGroup ? 'true' : 'false'}"
-            ${student.leftGroup ? 'disabled title="This student left the group — click ↩ Left group to undo"' : ''}>
-            ${student.leftGroup ? 'Left' : (student.inGroup ? (student.assignedGroup ? `✓ ${escapeHtml(student.assignedGroup)}` : '✓ In group') : '+ Add')}
-          </button>
-          ${student.inGroup && !student.leftGroup ? `
-            <button type="button" class="btn-action left-group"
-              onclick="markStudentLeftGroup('${student.id}', this)"
-              title="Mark student as having left the group">Left</button>
-          ` : student.leftGroup ? `
-            <button type="button" class="btn-action left-group is-active"
-              onclick="markStudentLeftGroup('${student.id}', this)"
-              title="Student marked as left group — click again to undo and restore to group">↩ Left</button>
-          ` : ''}
-          ${groupButtonsHtml}
-        </div>
-      </td>
-      <td>
-        <button type="button"
-          class="btn-table-icon ${Boolean(student.linkApproved) ? 'is-approved' : ''}"
-          onclick="toggleStudentLinkApproval('${student.id}', ${!Boolean(student.linkApproved)}, this)"
-          title="${Boolean(student.linkApproved) ? 'Link sent & approved joined group (click to toggle)' : `Send link & approve ${escapeHtml(fullName)} joined group`}"
-          aria-pressed="${Boolean(student.linkApproved) ? 'true' : 'false'}">
-          ${Boolean(student.linkApproved) ? `
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-            <span>Approved</span>
-          ` : `
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-            <span>Approve</span>
-          `}
-        </button>
-      </td>
-      <td>
-        <div style="display:flex;align-items:center;gap:4px;">
-          <button type="button"
-            class="btn-table-icon ${Boolean(student.emailSent) ? 'is-sent' : ''}"
-            onclick="toggleStudentEmailSent('${student.id}', ${!Boolean(student.emailSent)}, this)"
-            title="${Boolean(student.emailSent) ? 'Email marked sent to student (click to unmark)' : `Email not marked sent to ${escapeHtml(fullName)} (click to mark sent)`}"
-            aria-pressed="${Boolean(student.emailSent) ? 'true' : 'false'}">
-            ${Boolean(student.emailSent) ? `
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-              <span>Sent</span>
-            ` : `
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              <span>Unsent</span>
-            `}
-          </button>
-          <button type="button"
-            class="btn-table-action"
-            onclick="sendStudentEmailAutomatically('${student.id}', this)"
-            title="${Boolean(student.emailSent) ? `Email already sent — click to resend` : `Send invitation email`}">
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-          </button>
-        </div>
-      </td>
-      <td>
-        <div class="table-row-actions">
-          ${student.phone ? `
-            <button type="button" class="btn-table-action" onclick="saveStudentContact('${student.id}')" title="Save ${escapeHtml(fullName)} to phone contacts">
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-            </button>
-          ` : ''}
-          ${!isDeleg ? `
-            <a class="btn-table-action edit" href="form.html?edit=${student.id}" title="Edit student record">Edit</a>
-            <button type="button" class="btn-table-action student-note-button" data-student-id="${escapeHtml(student.id)}" title="${student.note ? escapeHtml(student.note) : 'Add note'}">${student.note ? 'Note ✎' : '+ Note'}</button>
-            <button type="button" class="btn-table-action delete" onclick="deleteStudentRecord('${student.id}')" title="Delete student record">✕</button>
-          ` : ''}
-        </div>
-      </td>
-    </tr>
-  `;
-}
 
 // Render student grid and stats (for dashboard)
 function renderStudents(query = '') {
-  if (!recordsGrid && !recordsTableWrap) return;
+  if (!recordsGrid) return;
   const needle = query.trim().toLowerCase();
   const tokens = needle ? needle.split(/\s+/).filter(Boolean) : [];
   const numericNeedle = /^[\s()+.-]*\d[\d\s()+.-]*$/.test(needle)
@@ -1496,14 +1002,13 @@ function renderStudents(query = '') {
     return matchesSearch && matchesStatus && matchesLink && matchesEmailSent && matchesMajor && matchesCampus && matchesLanguage && matchesGroup;
   });
 
-  const pageSize = getPageSize();
   const totalItems = filtered.length;
-  const totalPages = Math.ceil(totalItems / pageSize) || 1;
+  const totalPages = Math.ceil(totalItems / STUDENTS_PER_PAGE) || 1;
   if (currentStudentPage > totalPages) currentStudentPage = totalPages;
   if (currentStudentPage < 1) currentStudentPage = 1;
 
-  const startIndex = (currentStudentPage - 1) * pageSize;
-  const endIndex = Math.min(startIndex + pageSize, totalItems);
+  const startIndex = (currentStudentPage - 1) * STUDENTS_PER_PAGE;
+  const endIndex = Math.min(startIndex + STUDENTS_PER_PAGE, totalItems);
   const pageItems = filtered.slice(startIndex, endIndex);
 
   if (recordCount) recordCount.textContent = students.length;
@@ -1551,41 +1056,315 @@ function renderStudents(query = '') {
   updateActiveStatCardStates();
 
   const isDeleg = isCurrentUserDeleg();
-  const viewMode = getViewMode();
 
-  if (filtered.length === 0) {
-    if (recordsGrid) {
-      recordsGrid.innerHTML = '';
-      recordsGrid.hidden = true;
-    }
-    if (recordsTableWrap) {
-      recordsTableWrap.hidden = true;
-      if (recordsTableBody) recordsTableBody.innerHTML = '';
-    }
-  } else if (viewMode === 'table') {
-    if (recordsGrid) recordsGrid.hidden = true;
-    if (recordsTableWrap) {
-      recordsTableWrap.hidden = false;
-      if (recordsTableBody) {
-        recordsTableBody.innerHTML = pageItems.map(student => renderStudentTableRow(student, isDeleg)).join('');
+  recordsGrid.innerHTML = pageItems.map(student => {
+    const fullName = `${student.firstName} ${student.fatherName} ${student.familyName}`;
+    const initials = `${student.firstName?.[0] || ''}${student.familyName?.[0] || ''}`.toUpperCase();
+    const lang = (student.language || '').trim().toLowerCase();
+    const campus = (student.campus || '').trim().toLowerCase();
+    const isAmchit = campus.includes('amchit') || campus.includes('amshit');
+    const isFrench = lang.includes('french');
+    const isEnglish = lang.includes('english');
+    const isLeft = Boolean(student.leftGroup);
+    const groupDisabledAttr = isLeft ? 'disabled title="This student left the group — click ↩ Left group to undo"' : '';
+
+    let groupButtonsHtml = '';
+    const assigned = getStudentAssignedGroup(student);
+    const studentSec = (student.section || inferSectionFromMajor(student.major) || 'mispce').toLowerCase();
+
+    if (studentSec === 'l2') {
+      if (isFrench) {
+        const isL2FR = assigned === 'L2 FR';
+        groupButtonsHtml = `
+          <div class="group-section-actions">
+            <button type="button"
+              class="btn-action group-section-btn ${isL2FR ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'L2 FR', this)"
+              aria-pressed="${isL2FR ? 'true' : 'false'}"
+              ${groupDisabledAttr}>
+              ${isL2FR ? '✓ L2 FR' : 'L2 FR'}
+            </button>
+          </div>
+        `;
+      } else if (isEnglish) {
+        const isL2ENG = assigned === 'L2 ENG';
+        groupButtonsHtml = `
+          <div class="group-section-actions">
+            <button type="button"
+              class="btn-action group-section-btn ${isL2ENG ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'L2 ENG', this)"
+              aria-pressed="${isL2ENG ? 'true' : 'false'}"
+              ${groupDisabledAttr}>
+              ${isL2ENG ? '✓ L2 ENG' : 'L2 ENG'}
+            </button>
+          </div>
+        `;
       }
+    } else if (studentSec === 'l3') {
+      if (isFrench) {
+        const isL3FR = assigned === 'L3 FR';
+        groupButtonsHtml = `
+          <div class="group-section-actions">
+            <button type="button"
+              class="btn-action group-section-btn ${isL3FR ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'L3 FR', this)"
+              aria-pressed="${isL3FR ? 'true' : 'false'}"
+              ${groupDisabledAttr}>
+              ${isL3FR ? '✓ L3 FR' : 'L3 FR'}
+            </button>
+          </div>
+        `;
+      } else if (isEnglish) {
+        const isL3ENG = assigned === 'L3 ENG';
+        groupButtonsHtml = `
+          <div class="group-section-actions">
+            <button type="button"
+              class="btn-action group-section-btn ${isL3ENG ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'L3 ENG', this)"
+              aria-pressed="${isL3ENG ? 'true' : 'false'}"
+              ${groupDisabledAttr}>
+              ${isL3ENG ? '✓ L3 ENG' : 'L3 ENG'}
+            </button>
+          </div>
+        `;
+      }
+    } else if (studentSec === 'm1') {
+      const isM1FR = assigned === 'M1 FR';
+      groupButtonsHtml = `
+        <div class="group-section-actions">
+          <button type="button"
+            class="btn-action group-section-btn ${isM1FR ? 'is-active' : ''}"
+            onclick="setStudentAssignedGroup('${student.id}', 'M1 FR', this)"
+            aria-pressed="${isM1FR ? 'true' : 'false'}"
+            ${groupDisabledAttr}>
+            ${isM1FR ? '✓ M1 FR' : 'M1 FR'}
+          </button>
+        </div>
+      `;
+    } else if (isAmchit) {
+      const isAmchitActive = assigned === 'Amchit';
+      groupButtonsHtml = `
+          <div class="group-section-actions">
+            <button type="button"
+              class="btn-action group-section-btn ${isAmchitActive ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'Amchit', this)"
+              aria-pressed="${isAmchitActive ? 'true' : 'false'}"
+              ${groupDisabledAttr}>
+              ${isAmchitActive ? '✓ Amchit' : 'Amchit'}
+            </button>
+          </div>
+      `;
+    } else if (isFrench) {
+      const isA = assigned === 'Grp A';
+      const isB = assigned === 'Grp B';
+      const isCD = assigned === 'Grp C,D';
+      groupButtonsHtml = `
+          <div class="group-section-actions">
+            <button type="button"
+              class="btn-action group-section-btn ${isA ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'Grp A', this)"
+              aria-pressed="${isA ? 'true' : 'false'}"
+              ${groupDisabledAttr}>
+              ${isA ? '✓ Grp A' : 'Grp A'}
+            </button>
+            <button type="button"
+              class="btn-action group-section-btn ${isB ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'Grp B', this)"
+              aria-pressed="${isB ? 'true' : 'false'}"
+              ${groupDisabledAttr}>
+              ${isB ? '✓ Grp B' : 'Grp B'}
+            </button>
+            <button type="button"
+              class="btn-action group-section-btn ${isCD ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'Grp C,D', this)"
+              aria-pressed="${isCD ? 'true' : 'false'}"
+              ${groupDisabledAttr}>
+              ${isCD ? '✓ Grp C,D' : 'Grp C,D'}
+            </button>
+          </div>
+      `;
+    } else if (isEnglish) {
+      const isE1 = assigned === 'Grp E1';
+      const isE2 = assigned === 'Grp E2';
+      groupButtonsHtml = `
+          <div class="group-section-actions">
+            <button type="button"
+              class="btn-action group-section-btn ${isE1 ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'Grp E1', this)"
+              aria-pressed="${isE1 ? 'true' : 'false'}"
+              ${groupDisabledAttr}>
+              ${isE1 ? '✓ Grp E1' : 'Grp E1'}
+            </button>
+            <button type="button"
+              class="btn-action group-section-btn ${isE2 ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'Grp E2', this)"
+              aria-pressed="${isE2 ? 'true' : 'false'}"
+              ${groupDisabledAttr}>
+              ${isE2 ? '✓ Grp E2' : 'Grp E2'}
+            </button>
+          </div>
+      `;
     }
-  } else {
-    if (recordsTableWrap) recordsTableWrap.hidden = true;
-    if (recordsGrid) {
-      recordsGrid.hidden = false;
-      recordsGrid.innerHTML = pageItems.map(student => renderStudentCard(student, isDeleg)).join('');
-    }
-  }
 
-  renderPagination(totalItems, totalPages, pageSize);
+    return `
+      <article class="student-card ${Boolean(student.emailSent) ? 'has-email-sent' : ''}">
+        <span class="tag">${escapeHtml(student.status)}</span>
+        <div class="student-top">
+          <div class="avatar">${escapeHtml(initials)}</div>
+          <div class="student-top-info">
+            <div class="student-name-row">
+              <h3>${escapeHtml(fullName)}</h3>
+              <button type="button"
+                class="btn-email-status-icon ${Boolean(student.emailSent) ? 'is-sent' : ''}"
+                onclick="toggleStudentEmailSent('${student.id}', ${!Boolean(student.emailSent)}, this)"
+                title="${Boolean(student.emailSent) ? 'Email marked sent to student (click to unmark)' : `Email not marked sent to ${escapeHtml(fullName)} (click to mark sent)`}"
+                aria-label="${Boolean(student.emailSent) ? 'Email sent to student' : 'Mark email as sent'}"
+                aria-pressed="${Boolean(student.emailSent) ? 'true' : 'false'}">
+                ${Boolean(student.emailSent) ? `
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h9"/>
+                    <polyline points="22,6 12,13 2,6"/>
+                    <polyline points="16 19 19 22 24 17"/>
+                  </svg>
+                ` : `
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect width="20" height="16" x="2" y="4" rx="2"/>
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                  </svg>
+                `}
+              </button>
+              <button type="button"
+                class="btn-approve-class-icon ${Boolean(student.linkApproved) ? 'is-approved' : ''}"
+                onclick="toggleStudentLinkApproval('${student.id}', ${!Boolean(student.linkApproved)}, this)"
+                title="${Boolean(student.linkApproved) ? 'Link sent & approved joined group' : `Send link & approve ${escapeHtml(fullName)} joined group`}"
+                aria-label="${Boolean(student.linkApproved) ? 'Link sent & approved joined group' : `Send link & approve ${escapeHtml(fullName)} joined group`}"
+                aria-pressed="${Boolean(student.linkApproved) ? 'true' : 'false'}">
+                ${Boolean(student.linkApproved) ? `
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                ` : `
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                    <polyline points="12 5 19 12 12 19"/>
+                  </svg>
+                `}
+              </button>
+            </div>
+            <p>${escapeHtml(student.major)} • ${escapeHtml(studentSec.toUpperCase())}${student.fileNumber ? ` • File #${escapeHtml(student.fileNumber)}` : ''}</p>
+          </div>
+        </div>
+        <div class="student-details">
+          <div class="detail"><small>Major</small><span title="${escapeHtml(student.major)}">${escapeHtml(student.major)}</span></div>
+          <div class="detail"><small>Section</small><span>${escapeHtml(studentSec.toUpperCase())}</span></div>
+          ${student.fileNumber ? `<div class="detail"><small>File Number</small><span title="File #${escapeHtml(student.fileNumber)}"><b>#${escapeHtml(student.fileNumber)}</b></span></div>` : ''}
+          <div class="detail"><small>School</small><span title="${escapeHtml(student.school)}">${escapeHtml(student.school)}</span></div>
+          <div class="detail"><small>Campus</small><span>${escapeHtml(student.campus)}</span></div>
+          <div class="detail"><small>Language</small><span>${escapeHtml(student.language)}</span></div>
+          <div class="detail">
+            <small>Phone</small>
+            <div class="phone-row">
+              ${student.phone ? `<a href="tel:${escapeHtml(String(student.phone).trim())}" class="phone-link" title="Call ${escapeHtml(fullName)}">${escapeHtml(student.phone)}</a>` : '<span>N/A</span>'}
+              ${student.phone ? `
+                <button type="button" class="btn-contact-quick" onclick="saveStudentContact('${student.id}')" title="Save ${escapeHtml(fullName)} to contacts" aria-label="Save ${escapeHtml(fullName)} to phone contacts">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+                  </svg>
+                </button>
+              ` : ''}
+            </div>
+          </div>
+          <div class="detail email-detail">
+            <small>Email</small>
+            <div class="email-row">
+              ${student.email ? `<span title="${escapeHtml(student.email)}" class="email-text">${escapeHtml(student.email)}</span>` : '<span>N/A</span>'}
+              ${student.email ? `
+                <button type="button" class="btn-contact-quick btn-email-quick" onclick="openEmailModalForStudent('${student.id}')" title="Send invitation email to ${escapeHtml(fullName)}" aria-label="Send invitation email to ${escapeHtml(fullName)}">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect width="20" height="16" x="2" y="4" rx="2"/>
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                  </svg>
+                </button>
+                <button type="button"
+                  class="btn-email-sent-badge ${Boolean(student.emailSent) ? 'is-sent' : 'is-unsent'}"
+                  onclick="toggleStudentEmailSent('${student.id}', ${!Boolean(student.emailSent)}, this)"
+                  title="${Boolean(student.emailSent) ? 'Email marked as sent (click to unmark)' : 'Email not marked as sent (click to mark sent)'}"
+                  aria-label="${Boolean(student.emailSent) ? 'Email sent to student' : 'Mark email sent'}"
+                  aria-pressed="${Boolean(student.emailSent) ? 'true' : 'false'}">
+                  ${Boolean(student.emailSent) ? `
+                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <span>Sent</span>
+                  ` : `
+                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <line x1="12" y1="5" x2="12" y2="19"/>
+                      <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    <span>Mark Sent</span>
+                  `}
+                </button>
+              ` : ''}
+            </div>
+          </div>
+          <div class="detail"><small>Origin</small><span>${escapeHtml(student.origin || 'N/A')}</span></div>
+          ${!isDeleg ? `
+          <div class="detail political-detail">
+            <small>Political affiliation</small>
+            ${student.politicalAffiliation ? `
+              <span class="political-value" aria-live="polite">••••••••</span>
+              <button type="button" class="reveal-affiliation" data-student-id="${escapeHtml(student.id)}" aria-expanded="false">Show affiliation</button>
+            ` : '<span>Not provided</span>'}
+          </div>` : ''}
+        </div>
+        ${!isDeleg && student.note ? `<div class="student-note"><strong>Note</strong><p>${escapeHtml(student.note)}</p></div>` : ''}
+        <div class="card-actions">
+          <button type="button"
+            class="btn-action group-toggle ${student.inGroup ? 'is-in-group' : ''}"
+            onclick="toggleGroupMembership('${student.id}', ${!student.inGroup}, this)"
+            aria-pressed="${student.inGroup ? 'true' : 'false'}"
+            ${student.leftGroup ? 'disabled title="This student left the group — click ↩ Left group to undo"' : ''}>
+            ${student.leftGroup ? 'In group (disabled)' : (student.inGroup ? (student.assignedGroup ? `✓ In group (${escapeHtml(student.assignedGroup)})` : '✓ In group') : '+ Add to group')}
+          </button>
+          ${student.inGroup && !student.leftGroup ? `
+            <button type="button" class="btn-action left-group"
+              onclick="markStudentLeftGroup('${student.id}', this)"
+              title="Mark student as having left the group">Left group</button>
+          ` : student.leftGroup ? `
+            <button type="button" class="btn-action left-group is-active"
+              onclick="markStudentLeftGroup('${student.id}', this)"
+              title="Student marked as left group — click again to undo and restore to group">↩ Left group</button>
+          ` : ''}
+          <button type="button"
+            class="btn-action email-invite-card-btn"
+            onclick="sendStudentEmailAutomatically('${student.id}', this)"
+            title="${Boolean(student.emailSent) ? `Email already sent to ${escapeHtml(fullName)} — click to send again` : `Send an invitation email to ${escapeHtml(fullName)}`}">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect width="20" height="16" x="2" y="4" rx="2"/>
+              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+            </svg>
+            Send Email
+          </button>
+          ${groupButtonsHtml}
+          ${!isDeleg ? `
+          <div class="record-edit-actions">
+          <a class="btn-action edit" href="form.html?edit=${student.id}">Edit record</a>
+          <button type="button" class="btn-action student-note-button" data-student-id="${escapeHtml(student.id)}">${student.note ? 'Edit Note' : 'Add Note'}</button>
+          <button type="button" class="btn-action delete" onclick="deleteStudentRecord('${student.id}')">Delete</button>
+          </div>` : ''}
+        </div>
+      </article>
+    `;
+  }).join('');
+
+  renderPagination(totalItems, totalPages);
 }
 
-function renderPagination(totalItems, totalPages, pageSize = getPageSize()) {
+function renderPagination(totalItems, totalPages) {
   const nav = document.querySelector('#paginationNav');
   if (!nav) return;
 
-  if (totalItems <= pageSize) {
+  if (totalItems <= STUDENTS_PER_PAGE) {
     nav.hidden = true;
     return;
   }
@@ -1593,8 +1372,8 @@ function renderPagination(totalItems, totalPages, pageSize = getPageSize()) {
 
   const info = document.querySelector('#paginationInfo');
   if (info) {
-    const startNum = totalItems === 0 ? 0 : (currentStudentPage - 1) * pageSize + 1;
-    const endNum = Math.min(currentStudentPage * pageSize, totalItems);
+    const startNum = totalItems === 0 ? 0 : (currentStudentPage - 1) * STUDENTS_PER_PAGE + 1;
+    const endNum = Math.min(currentStudentPage * STUDENTS_PER_PAGE, totalItems);
     info.textContent = `Showing ${startNum}–${endNum} of ${totalItems} students (Page ${currentStudentPage} of ${totalPages})`;
   }
 
@@ -2056,13 +1835,6 @@ function setupPoliticalTabs() {
   });
 }
 
-function scrollToDirectoryRecords() {
-  const recordsEl = (recordsGrid && !recordsGrid.hidden) ? recordsGrid : (recordsTableWrap || recordsGrid);
-  if (recordsEl) {
-    recordsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-}
-
 function setupClassStatClicks() {
   if (isCurrentUserDeleg()) return;
   document.querySelectorAll('.class-stat').forEach(card => {
@@ -2076,7 +1848,10 @@ function setupClassStatClicks() {
       }
       groupFilter.dispatchEvent(new Event('change', { bubbles: true }));
       scheduleRenderStudents(searchInput ? searchInput.value : '');
-      scrollToDirectoryRecords();
+      const recordsGrid = document.querySelector('#recordsGrid');
+      if (recordsGrid) {
+        recordsGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     });
   });
 
@@ -2088,7 +1863,10 @@ function setupClassStatClicks() {
       targetFilter.value = (targetFilter.value === val) ? '' : val;
       targetFilter.dispatchEvent(new Event('change', { bubbles: true }));
       scheduleRenderStudents(searchInput ? searchInput.value : '');
-      scrollToDirectoryRecords();
+      const recordsGrid = document.querySelector('#recordsGrid');
+      if (recordsGrid) {
+        recordsGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     });
   });
 
@@ -2099,7 +1877,10 @@ function setupClassStatClicks() {
       groupFilter.value = (groupFilter.value === val) ? '' : val;
       groupFilter.dispatchEvent(new Event('change', { bubbles: true }));
       scheduleRenderStudents(searchInput ? searchInput.value : '');
-      scrollToDirectoryRecords();
+      const recordsGrid = document.querySelector('#recordsGrid');
+      if (recordsGrid) {
+        recordsGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     });
   });
 
@@ -2110,7 +1891,10 @@ function setupClassStatClicks() {
       statusFilter.value = (statusFilter.value === val) ? '' : val;
       statusFilter.dispatchEvent(new Event('change', { bubbles: true }));
       scheduleRenderStudents(searchInput ? searchInput.value : '');
-      scrollToDirectoryRecords();
+      const recordsGrid = document.querySelector('#recordsGrid');
+      if (recordsGrid) {
+        recordsGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     });
   });
 
@@ -2121,7 +1905,10 @@ function setupClassStatClicks() {
       emailSentFilter.value = (emailSentFilter.value === val) ? '' : val;
       emailSentFilter.dispatchEvent(new Event('change', { bubbles: true }));
       scheduleRenderStudents(searchInput ? searchInput.value : '');
-      scrollToDirectoryRecords();
+      const recordsGrid = document.querySelector('#recordsGrid');
+      if (recordsGrid) {
+        recordsGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     });
   });
 
@@ -3156,7 +2943,7 @@ if (exportBtn) {
 function setupNotes() {
   if (isCurrentUserDeleg()) return;
   const dialog = document.querySelector('#noteDialog');
-  if (!dialog || (!recordsGrid && !recordsTableWrap)) return;
+  if (!dialog || !recordsGrid) return;
   const noteForm = document.querySelector('#noteForm');
   const input = document.querySelector('#noteText');
   const error = document.querySelector('#noteError');
@@ -3165,7 +2952,7 @@ function setupNotes() {
   let studentId = null;
   let saving = false;
 
-  const handleNoteClick = event => {
+  recordsGrid.addEventListener('click', event => {
     const button = event.target.closest('.student-note-button');
     if (!button) return;
     const student = students.find(item => String(item.id) === button.dataset.studentId);
@@ -3177,19 +2964,11 @@ function setupNotes() {
     document.querySelector('#noteStudentName').textContent = `${student.firstName} ${student.familyName}`;
     dialog.showModal();
     input.focus();
-  };
-
-  if (recordsGrid) {
-    recordsGrid.addEventListener('click', handleNoteClick);
-  }
-  if (recordsTableWrap) {
-    recordsTableWrap.addEventListener('click', handleNoteClick);
-  }
-
+  });
   cancelButton.addEventListener('click', () => dialog.close());
   dialog.addEventListener('cancel', event => { if (saving) event.preventDefault(); });
   dialog.addEventListener('close', () => {
-    const button = Array.from(document.querySelectorAll('.student-note-button'))
+    const button = Array.from(recordsGrid.querySelectorAll('.student-note-button'))
       .find(item => item.dataset.studentId === String(studentId));
     if (button) button.focus();
   });
@@ -4403,7 +4182,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setupUserSectionOptions();
   initCustomSelects();
   setupNotes();
-  setupViewModeToggle();
   setupPoliticalTabs();
   setupClassStatClicks();
   setupSectionSwitchTabs();
