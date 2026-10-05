@@ -1320,129 +1320,164 @@ function renderStudentCard(student, isDeleg) {
   `;
 }
 
+function cleanMetaText(str) {
+  const s = String(str || '').trim();
+  if (!s || s === '.' || s === '-' || s === '•' || s.toLowerCase() === 'n/a') return '';
+  return s;
+}
+
 function renderStudentTableRow(student, isDeleg) {
   const fullName = `${student.firstName} ${student.fatherName} ${student.familyName}`.trim();
   const initials = `${student.firstName?.[0] || ''}${student.familyName?.[0] || ''}`.toUpperCase();
   const isLeft = Boolean(student.leftGroup);
   const groupDisabledAttr = isLeft ? 'disabled title="This student left the group — click ↩ Left group to undo"' : '';
   const groupButtonsHtml = renderStudentGroupSectionActions(student, isLeft, groupDisabledAttr);
+  const hasSectionButtons = Boolean(groupButtonsHtml && groupButtonsHtml.trim());
   const studentSec = (student.section || inferSectionFromMajor(student.major) || 'mispce').toLowerCase();
   const campus = (student.campus || '').trim().toLowerCase();
   const isAmchit = campus.includes('amchit') || campus.includes('amshit');
+  const lang = (student.language || '').trim().toLowerCase();
+  const isFrench = lang.includes('french');
+  const isEnglish = lang.includes('english');
+
+  const school = cleanMetaText(student.school);
+  const origin = cleanMetaText(student.origin);
+  const metaParts = [school, origin].filter(Boolean);
+  const subMetaHtml = metaParts.length ? `<span class="student-sub-meta" title="${escapeHtml(metaParts.join(' • '))}">${escapeHtml(metaParts.join(' • '))}</span>` : '';
 
   return `
     <tr class="student-table-row ${Boolean(student.emailSent) ? 'has-email-sent' : ''}" data-student-id="${escapeHtml(student.id)}">
-      <td>
+      <td class="cell-student">
         <div class="table-student-cell">
           <div class="avatar-sm" aria-hidden="true">${escapeHtml(initials)}</div>
           <div class="table-student-names">
             <strong class="student-name-text">${escapeHtml(fullName)}</strong>
-            <span class="student-sub-meta">
-              ${student.school ? `<span class="school-tag" title="${escapeHtml(student.school)}">${escapeHtml(student.school)}</span>` : ''}
-              ${student.school && student.origin ? ' • ' : ''}
-              ${student.origin ? `<span>${escapeHtml(student.origin)}</span>` : ''}
-            </span>
+            ${subMetaHtml}
           </div>
         </div>
       </td>
-      <td>
-        <span class="status-pill status-${student.status === 'New' ? 'new' : 'mu3id'}">${escapeHtml(student.status || 'New')}</span>
-        ${student.fileNumber ? `<span class="file-num-pill" title="File #${escapeHtml(student.fileNumber)}">#${escapeHtml(student.fileNumber)}</span>` : ''}
+      <td class="cell-status">
+        <div class="table-status-cell">
+          <span class="status-pill status-${student.status === 'New' ? 'new' : 'mu3id'}">${escapeHtml(student.status || 'New')}</span>
+          ${student.fileNumber ? `<span class="file-num-pill" title="File #${escapeHtml(student.fileNumber)}">#${escapeHtml(student.fileNumber)}</span>` : ''}
+        </div>
       </td>
       <td class="cell-academic">
-        <span class="major-name" title="${escapeHtml(student.major)}">${escapeHtml(student.major || '')}</span>
-        <span class="section-tag">${escapeHtml(studentSec.toUpperCase())}</span>
+        <div class="table-academic-cell">
+          <span class="major-name" title="${escapeHtml(student.major)}">${escapeHtml(student.major || '')}</span>
+          <span class="section-tag">${escapeHtml(studentSec.toUpperCase())}</span>
+        </div>
       </td>
       <td class="cell-campus-lang">
-        <span class="campus-badge campus-${isAmchit ? 'amshit' : 'fanar'}">${escapeHtml(student.campus || 'Fanar')}</span>
-        <span class="lang-badge">${escapeHtml(student.language || 'French')}</span>
+        <div class="table-campus-lang-cell">
+          <span class="campus-badge campus-${isAmchit ? 'amshit' : 'fanar'}">${isAmchit ? 'Amchit' : 'Fanar'}</span>
+          <span class="lang-badge">${isFrench ? 'FR' : (isEnglish ? 'EN' : (student.language || 'FR'))}</span>
+        </div>
       </td>
-      <td>
+      <td class="cell-contact">
         <div class="table-contact-cell">
           ${student.phone ? `
             <a href="tel:${escapeHtml(String(student.phone).trim())}" class="table-phone-link" title="Call ${escapeHtml(fullName)}">
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
               <span>${escapeHtml(student.phone)}</span>
             </a>
-          ` : '<span style="font-size:11px;color:var(--muted)">No phone</span>'}
+          ` : '<span class="contact-na">No phone</span>'}
           ${student.email ? `
             <button type="button" class="table-email-link" onclick="openEmailModalForStudent('${student.id}')" title="Send email to ${escapeHtml(fullName)}">
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-              <span style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(student.email)}</span>
+              <span>${escapeHtml(student.email)}</span>
             </button>
-          ` : '<span style="font-size:11px;color:var(--muted)">No email</span>'}
+          ` : '<span class="contact-na">No email</span>'}
         </div>
       </td>
       <td class="cell-group">
         <div class="table-group-actions">
-          <button type="button"
-            class="btn-action group-toggle ${student.inGroup ? 'is-in-group' : ''}"
-            onclick="toggleGroupMembership('${student.id}', ${!student.inGroup}, this)"
-            aria-pressed="${student.inGroup ? 'true' : 'false'}"
-            ${student.leftGroup ? 'disabled title="This student left the group — click ↩ Left group to undo"' : ''}>
-            ${student.leftGroup ? 'Left' : (student.inGroup ? (student.assignedGroup ? `✓ ${escapeHtml(student.assignedGroup)}` : '✓ In group') : '+ Add')}
-          </button>
-          ${student.inGroup && !student.leftGroup ? `
-            <button type="button" class="btn-action left-group"
-              onclick="markStudentLeftGroup('${student.id}', this)"
-              title="Mark student as having left the group">Left</button>
-          ` : student.leftGroup ? `
-            <button type="button" class="btn-action left-group is-active"
-              onclick="markStudentLeftGroup('${student.id}', this)"
-              title="Student marked as left group — click again to undo and restore to group">↩ Left</button>
-          ` : ''}
-          ${groupButtonsHtml}
+          ${hasSectionButtons ? `
+            ${groupButtonsHtml}
+            ${student.leftGroup ? `
+              <button type="button" class="btn-action left-group is-active table-left-btn"
+                onclick="markStudentLeftGroup('${student.id}', this)"
+                title="Student marked as left group — click again to undo and restore to group">↩ Left</button>
+            ` : student.inGroup ? `
+              <button type="button" class="btn-action left-group table-left-btn"
+                onclick="markStudentLeftGroup('${student.id}', this)"
+                title="Mark student as having left the group">Left</button>
+            ` : ''}
+          ` : `
+            <button type="button"
+              class="btn-action group-toggle ${student.inGroup ? 'is-in-group' : ''}"
+              onclick="toggleGroupMembership('${student.id}', ${!student.inGroup}, this)"
+              aria-pressed="${student.inGroup ? 'true' : 'false'}"
+              ${student.leftGroup ? 'disabled title="This student left the group — click ↩ Left group to undo"' : ''}>
+              ${student.leftGroup ? 'Left' : (student.inGroup ? (student.assignedGroup ? `✓ ${escapeHtml(student.assignedGroup)}` : '✓ In group') : '+ Add')}
+            </button>
+            ${student.leftGroup ? `
+              <button type="button" class="btn-action left-group is-active table-left-btn"
+                onclick="markStudentLeftGroup('${student.id}', this)"
+                title="Student marked as left group — click again to undo and restore to group">↩ Left</button>
+            ` : student.inGroup ? `
+              <button type="button" class="btn-action left-group table-left-btn"
+                onclick="markStudentLeftGroup('${student.id}', this)"
+                title="Mark student as having left the group">Left</button>
+            ` : ''}
+          `}
         </div>
       </td>
-      <td>
+      <td class="cell-link-approved">
         <button type="button"
           class="btn-table-icon ${Boolean(student.linkApproved) ? 'is-approved' : ''}"
           onclick="toggleStudentLinkApproval('${student.id}', ${!Boolean(student.linkApproved)}, this)"
           title="${Boolean(student.linkApproved) ? 'Link sent & approved joined group (click to toggle)' : `Send link & approve ${escapeHtml(fullName)} joined group`}"
           aria-pressed="${Boolean(student.linkApproved) ? 'true' : 'false'}">
           ${Boolean(student.linkApproved) ? `
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
             <span>Approved</span>
           ` : `
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
             <span>Approve</span>
           `}
         </button>
       </td>
-      <td>
-        <div style="display:flex;align-items:center;gap:4px;">
+      <td class="cell-email-sent">
+        <div class="table-email-cluster">
           <button type="button"
             class="btn-table-icon ${Boolean(student.emailSent) ? 'is-sent' : ''}"
             onclick="toggleStudentEmailSent('${student.id}', ${!Boolean(student.emailSent)}, this)"
             title="${Boolean(student.emailSent) ? 'Email marked sent to student (click to unmark)' : `Email not marked sent to ${escapeHtml(fullName)} (click to mark sent)`}"
             aria-pressed="${Boolean(student.emailSent) ? 'true' : 'false'}">
             ${Boolean(student.emailSent) ? `
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
               <span>Sent</span>
             ` : `
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               <span>Unsent</span>
             `}
           </button>
           <button type="button"
-            class="btn-table-action"
+            class="btn-table-action btn-send-invite-icon"
             onclick="sendStudentEmailAutomatically('${student.id}', this)"
             title="${Boolean(student.emailSent) ? `Email already sent — click to resend` : `Send invitation email`}">
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
           </button>
         </div>
       </td>
-      <td>
+      <td class="cell-actions">
         <div class="table-row-actions">
           ${student.phone ? `
             <button type="button" class="btn-table-action" onclick="saveStudentContact('${student.id}')" title="Save ${escapeHtml(fullName)} to phone contacts">
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
             </button>
           ` : ''}
           ${!isDeleg ? `
-            <a class="btn-table-action edit" href="form.html?edit=${student.id}" title="Edit student record">Edit</a>
-            <button type="button" class="btn-table-action student-note-button" data-student-id="${escapeHtml(student.id)}" title="${student.note ? escapeHtml(student.note) : 'Add note'}">${student.note ? 'Note ✎' : '+ Note'}</button>
-            <button type="button" class="btn-table-action delete" onclick="deleteStudentRecord('${student.id}')" title="Delete student record">✕</button>
+            <a class="btn-table-action edit" href="form.html?edit=${student.id}" title="Edit student record">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+            </a>
+            <button type="button" class="btn-table-action student-note-button ${student.note ? 'has-note' : ''}" data-student-id="${escapeHtml(student.id)}" title="${student.note ? escapeHtml(student.note) : 'Add note'}">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              ${student.note ? '<span class="note-indicator-dot"></span>' : ''}
+            </button>
+            <button type="button" class="btn-table-action delete" onclick="deleteStudentRecord('${student.id}')" title="Delete student record">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
           ` : ''}
         </div>
       </td>
